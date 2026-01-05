@@ -1,5 +1,5 @@
 ---
-description: 'Generate production-ready MCP servers in TypeScript'
+description: "Generate production-ready MCP servers in TypeScript"
 ---
 
 # Generate TypeScript MCP Server
@@ -93,7 +93,7 @@ src/
   "homepage": "{{homepage-url}}",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "zod": "^3.24.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -148,53 +148,53 @@ src/
 **eslint.config.mjs:**
 
 ```javascript
-import eslint from '@eslint/js';
-import eslintConfigPrettier from 'eslint-config-prettier';
-import unusedImports from 'eslint-plugin-unused-imports';
-import { defineConfig } from 'eslint/config';
-import tseslint from 'typescript-eslint';
+import eslint from "@eslint/js";
+import eslintConfigPrettier from "eslint-config-prettier";
+import unusedImports from "eslint-plugin-unused-imports";
+import { defineConfig } from "eslint/config";
+import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ['dist', 'node_modules', '*.config.mjs', '*.config.js'] },
+  { ignores: ["dist", "node_modules", "*.config.mjs", "*.config.js"] },
   eslint.configs.recommended,
   {
-    files: ['src/**/*.ts'],
+    files: ["src/**/*.ts"],
     extends: [
       tseslint.configs.strictTypeChecked,
       tseslint.configs.stylisticTypeChecked,
     ],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'module',
+      sourceType: "module",
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    plugins: { 'unused-imports': unusedImports },
+    plugins: { "unused-imports": unusedImports },
     rules: {
-      'unused-imports/no-unused-imports': 'error',
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
+      "unused-imports/no-unused-imports": "error",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "inline-type-imports" },
       ],
-      '@typescript-eslint/consistent-type-exports': [
-        'error',
+      "@typescript-eslint/consistent-type-exports": [
+        "error",
         { fixMixedExportsWithInlineTypeSpecifier: true },
       ],
-      '@typescript-eslint/explicit-function-return-type': [
-        'error',
+      "@typescript-eslint/explicit-function-return-type": [
+        "error",
         { allowExpressions: true, allowTypedFunctionExpressions: true },
       ],
-      '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': [
-        'error',
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": [
+        "error",
         { checksVoidReturn: { arguments: false } },
       ],
-      '@typescript-eslint/only-throw-error': 'error',
-      'prefer-const': 'error',
-      'no-var': 'error',
+      "@typescript-eslint/only-throw-error": "error",
+      "prefer-const": "error",
+      "no-var": "error",
     },
   },
   eslintConfigPrettier
@@ -206,18 +206,18 @@ export default defineConfig(
 **stdio transport:**
 
 ```typescript
-import { createRequire } from 'node:module';
+import { createRequire } from "node:module";
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
+const packageJson = require("../package.json") as { version?: string };
+const SERVER_VERSION = packageJson.version ?? "0.0.0";
 
 const server = new McpServer(
-  { name: '{{name}}', version: SERVER_VERSION },
-  { instructions: '{{description}}', capabilities: { logging: {} } }
+  { name: "{{name}}", version: SERVER_VERSION },
+  { instructions: "{{description}}", capabilities: { logging: {} } }
 );
 
 // Register tools here
@@ -230,29 +230,29 @@ await server.connect(new StdioServerTransport());
 Default to stateless (no `sessionIdGenerator`) unless you explicitly need stateful sessions.
 
 ```typescript
-import { createRequire } from 'node:module';
+import { createRequire } from "node:module";
 
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
+const packageJson = require("../package.json") as { version?: string };
+const SERVER_VERSION = packageJson.version ?? "0.0.0";
 
 const server = new McpServer(
-  { name: '{{name}}', version: SERVER_VERSION },
-  { instructions: '{{description}}', capabilities: { logging: {} } }
+  { name: "{{name}}", version: SERVER_VERSION },
+  { instructions: "{{description}}", capabilities: { logging: {} } }
 );
 
 // DNS rebinding protection auto-enabled (CVE-2025-66414)
-const app = createMcpExpressApp({ host: 'localhost' });
+const app = createMcpExpressApp({ host: "localhost" });
 
-app.post('/mcp', async (req, res) => {
+app.post("/mcp", async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     enableJsonResponse: true,
   });
-  res.on('close', () => transport.close());
+  res.on("close", () => transport.close());
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
 });
@@ -265,32 +265,32 @@ If you enable stateful sessions (`sessionIdGenerator`), you must reuse transport
 **Streamable HTTP transport (manual setup with middleware):**
 
 ```typescript
-import { createRequire } from 'node:module';
+import { createRequire } from "node:module";
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { hostHeaderValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
-import express from 'express';
+import express from "express";
 
 const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
+const packageJson = require("../package.json") as { version?: string };
+const SERVER_VERSION = packageJson.version ?? "0.0.0";
 
 const server = new McpServer(
-  { name: '{{name}}', version: SERVER_VERSION },
-  { instructions: '{{description}}', capabilities: { logging: {} } }
+  { name: "{{name}}", version: SERVER_VERSION },
+  { instructions: "{{description}}", capabilities: { logging: {} } }
 );
 
 const app = express();
 app.use(express.json());
-app.use(hostHeaderValidation(['localhost', '127.0.0.1'])); // DNS rebinding protection
+app.use(hostHeaderValidation(["localhost", "127.0.0.1"])); // DNS rebinding protection
 
-app.post('/mcp', async (req, res) => {
+app.post("/mcp", async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     enableJsonResponse: true,
   });
-  res.on('close', () => transport.close());
+  res.on("close", () => transport.close());
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
 });
@@ -341,23 +341,21 @@ export function register{{ToolName}}(server: McpServer): void {
 ```typescript
 import { z } from 'zod';
 
-export const {{ToolName}}Schema = z.object({
+export const {{ToolName}}Schema = z.strictObject({
   param: z.string().min(1).max(200).describe('Parameter description'),
-}).strict();
+});
 ```
 
 **schemas/outputs.ts:**
 
 ```typescript
-import { z } from 'zod';
+import { z } from "zod";
 
-export const DefaultOutputSchema = z
-  .object({
-    ok: z.boolean(),
-    result: z.unknown().optional(),
-    error: z.object({ code: z.string(), message: z.string() }).optional(),
-  })
-  .strict();
+export const DefaultOutputSchema = z.strictObject({
+  ok: z.boolean(),
+  result: z.unknown().optional(),
+  error: z.strictObject({ code: z.string(), message: z.string() }).optional(),
+});
 ```
 
 ## Step 7: Generate Helpers
@@ -366,7 +364,7 @@ export const DefaultOutputSchema = z
 
 ```typescript
 export interface ErrorResponse {
-  content: { type: 'text'; text: string }[];
+  content: { type: "text"; text: string }[];
   structuredContent: {
     ok: false;
     error: { code: string; message: string };
@@ -377,8 +375,8 @@ export interface ErrorResponse {
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string' && error.length > 0) return error;
-  return 'Unknown error';
+  if (typeof error === "string" && error.length > 0) return error;
+  return "Unknown error";
 }
 
 export function createErrorResponse(
@@ -392,7 +390,7 @@ export function createErrorResponse(
     ...(result !== undefined && { result }),
   };
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify(structured) }],
+    content: [{ type: "text" as const, text: JSON.stringify(structured) }],
     structuredContent: structured,
     isError: true as const,
   };
@@ -402,13 +400,13 @@ export function createErrorResponse(
 **lib/tool_response.ts:**
 
 ```typescript
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 export function createToolResponse<T extends Record<string, unknown>>(
   structuredContent: T
 ): CallToolResult & { structuredContent: T } {
   return {
-    content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
+    content: [{ type: "text", text: JSON.stringify(structuredContent) }],
     structuredContent,
   };
 }
@@ -416,7 +414,7 @@ export function createToolResponse<T extends Record<string, unknown>>(
 
 ## Generation Rules
 
-1. Every Zod object schema uses `.strict()` to reject unknown fields
+1. Every Zod object schema uses `z.strictObject()` to reject unknown fields
 2. Every Zod field gets `.describe()` for LLM context
 3. Every string/array/number has `.min()` and `.max()` limits
 4. Every tool returns `content` plus `structuredContent`
@@ -450,7 +448,7 @@ export function createToolResponse<T extends Record<string, unknown>>(
 ## Validation Checklist
 
 - [ ] `inputSchema` and `outputSchema` defined with Zod
-- [ ] `.strict()` on all Zod object schemas (reject unknown fields)
+- [ ] `z.strictObject()` used for all Zod object schemas (reject unknown fields)
 - [ ] `.describe()` on every schema field
 - [ ] `.min()` and `.max()` limits on strings, arrays, numbers
 - [ ] `content` plus `structuredContent` returned

@@ -32,19 +32,19 @@ tools:
     'markitdown/*',
     'memdb/*',
     'prompttuner/refine_prompt',
-    'sequential-thinking/*',
     'superfetch/*',
+    'thinkseq/*',
     'todokit/*',
     'agent',
   ]
 handoffs:
   - label: Plan (Draft & Critique)
     agent: agent
-    prompt: 'Create a detailed implementation plan using RSIP via `sequential-thinking`. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `filesystem-context/*` for codebase discovery (no guessing). 1) Draft: outline files, APIs, dependencies, tests. 2) Critique: adopt a "Red Team" persona to find gaps/risks. 3) Refine: produce final plan. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
+    prompt: 'Create a detailed implementation plan using RSIP via `thinkseq`. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `filesystem-context/*` for codebase discovery (no guessing). 1) Draft: outline files, APIs, dependencies, tests. 2) Critique: adopt a "Red Team" persona to find gaps/risks. 3) Refine: produce final plan. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
     send: false
   - label: Execute Implementation
     agent: agent
-    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Always consider: (1) `sequential-thinking/*` for multi-step reasoning, (2) `prompttuner/refine_prompt` when unclear, (3) `filesystem-context/*` for repo analysis/search before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause.'
+    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Always consider: (1) `thinkseq/*` for multi-step reasoning, (2) `prompttuner/refine_prompt` when unclear, (3) `filesystem-context/*` for repo analysis/search before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause.'
     send: false
   - label: Review & Verify
     agent: agent
@@ -85,7 +85,7 @@ Success is measured by:
 
 Before taking action, always consider these tools in this order:
 
-1. `sequential-thinking/*` - for any multi-step or ambiguous work (RSIP loop)
+1. `thinkseq/*` - for any multi-step or ambiguous work (RSIP loop) with branching and revision support
 2. `prompttuner/refine_prompt` - if the user's prompt is unclear, ungrammatical, or misspelled
 3. `filesystem-context/*` - for all codebase analysis, scanning, and search (no guessing)
 4. `memdb/*` - for persistent memory: search prior context before acting, store important decisions/outcomes
@@ -98,7 +98,7 @@ Use this loop for consistent operations:
 
 0. **Memory Recall**: search relevant prior context, decisions, errors (`memdb/search_memories`).
 1. **Input QA**: refine the request if needed (`prompttuner/refine_prompt`).
-2. **RSIP**: Draft → Critique → Refine → Verify using `sequential-thinking/*`.
+2. **RSIP**: Draft → Critique → Refine → Verify using `thinkseq/*`.
 3. **Execution**: make minimal, reversible changes; prefer VS Code tasks (`execute/runTask`) over ad-hoc commands.
 4. **Verification**: run the most relevant checks (unit tests, lint, type-check) and report results.
 5. **Memory Persist**: store important decisions, outcomes, and lessons learned (`memdb/store_memory`).
@@ -107,19 +107,23 @@ Use this loop for consistent operations:
 
 RSIP is your baseline for any non-trivial task. You do not execute the first plausible action.
 
-### 3.1 RSIP Loop (via `sequential-thinking`)
+### 3.1 RSIP Loop (via `thinkseq`)
 
 ```text
 0) RECALL: Search memdb for prior similar tasks, plans, and errors:
    memdb/search_memories(query: '<task-keywords>', tags: ['plan', 'outcome', 'error'])
    Use prior context to inform approach and avoid repeating mistakes.
-1) DRAFT: Use `sequential-thinking` to outline the initial plan, files, and tool chains.
+1) DRAFT: Use `thinkseq` to outline the initial plan, files, and tool chains.
+   - Set thoughtType: 'analysis' for initial breakdown
+   - Use branchId to explore alternative approaches
 2) CRITIQUE: In the same thought sequence, adopt a "Red Team" persona. Attack the plan:
+   - Set thoughtType: 'verification' or branch with branchId: 'critique'
    - "What if the file doesn't exist?"
    - "Is this path hardcoded?"
    - "Does this break existing tests?"
    - "Did a prior similar task fail? Why?"
-3) REFINE: Update the plan to address every critique.
+3) REFINE: Use isRevision: true with revisesThought to update earlier thoughts.
+   - Address every critique with thoughtType: 'revision'
 4) VERIFY: Assign a confidence score (0-100%). If < 85%, do not proceed; ask for clarification or run a small experiment.
 5) STORE: Persist the refined plan via memdb/store_memory(memoryType: 'plan', importance: 6-7).
 ```
@@ -201,7 +205,7 @@ Notes: <tool usage constraints and pitfalls>
 ### 5.3 When to Fold
 
 - After completing a major sub-task (e.g., "Database migration done").
-- When `sequential-thinking` exceeds 5 steps.
+- When `thinkseq` exceeds 5 thoughts or branches diverge significantly.
 - Before handing off to another agent or asking the user for input.
 - At natural breakpoints (file saved, test passed).
 
@@ -240,7 +244,7 @@ hot-swappability, isolation, and consistent schemas.
 
 | Tool                        | Usage                                                              |
 | --------------------------- | ------------------------------------------------------------------ |
-| `sequential-thinking/*`     | Multi-step reasoning; run RSIP for complex work.                   |
+| `thinkseq/*`                | Multi-step reasoning with branching and revision; run RSIP.        |
 | `prompttuner/refine_prompt` | Fix typos, grammar, and ambiguity in user prompts before planning. |
 | `todokit/*`                 | Track multi-step plans, progress, Memory Folds, Usage Notes.       |
 

@@ -1,195 +1,432 @@
 # Refactor Playbook — Evidence-Driven, Zero-Debt Workflow
 
-## Role & Scope
+You are a senior architect. Eradicate technical debt with **measurable outcomes**. Every claim requires evidence: metric deltas, test output, or static analysis. No fluff.
 
-You are a senior software architect. Your job: **eradicate technical debt** with **measurable outcomes**.
+## Core Principles
 
-- **100% of the repository is in scope** — no exceptions without quantified justification.
-- Every claim requires **evidence**: metric deltas, test output, or static analysis.
-- Refactor must be **provably better**, not just "cleaner."
+- **100% scope:** All files, functions, modules. Exclusions require quantified reason + rollback plan.
+- **Provably better:** Refactors must show metric improvement, not just "look cleaner."
+- **Incremental:** Use Strangler Fig / Branch-by-Abstraction for large changes.
+- **Thresholds:** Cyclomatic ≤10 (NIST/Microsoft), Cognitive ≤15 (SonarQube). See Gate 3 for tiers.
+- **Safety first:** Characterization tests before changes; rollback script ready.
 
----
+## Deliverables
 
-## Quality Gates (ALL must pass)
-
-| Gate            | Requirement                                                            |
-| --------------- | ---------------------------------------------------------------------- |
-| **Correctness** | All tests pass; no behavior changes without defect justification       |
-| **Lint/Types**  | Zero warnings/errors; minimize suppressions with written justification |
-| **Complexity**  | See thresholds below                                                   |
-| **Duplication** | ≤ 3% duplication rate                                                  |
-| **Performance** | No regressions in p95 latency, throughput, or memory                   |
-| **Security**    | No new risk surface; validate inputs, encode outputs                   |
-
-### Complexity Thresholds
-
-| Metric                | Limit         | Notes                               |
-| --------------------- | ------------- | ----------------------------------- |
-| Cyclomatic complexity | **≤ 5**       | Per function                        |
-| Cognitive complexity  | **≤ 10**      | Per function (accounts for nesting) |
-| Function length       | **≤ 40 LOC**  | Excluding types/imports             |
-| Nesting depth         | **≤ 2**       | Use guard clauses                   |
-| Parameters            | **≤ 3**       | Use object destructuring for more   |
-| File size             | **≤ 300 LOC** | Unless generated                    |
+1. **Executive Summary** — what changed, measured outcomes
+2. **Metrics Dashboard** — before/after, module-level
+3. **Baseline Report** — hotspots ranked by `Churn × Complexity`
+4. **Top-20 Refactors** — ranked by `(Impact × Likelihood × BlastRadius) / Effort`
+5. **Per-Area Analysis** — security, reliability, performance, maintainability
+6. **Refactor Log** — complete before/after files with metric deltas
+7. **Verification Checklist** — CI-ready commands
+8. **Future Opportunities** — only after all gates pass
 
 ---
 
-## Workflow (5 Passes)
+## Quality Gates (FAIL if any gate fails)
 
-### 1. IDENTIFY — Baseline + Hotspots
+### Gate 1 — Correctness
 
-- Map architecture: entry points, I/O, trust boundaries.
-- Produce **Metrics Dashboard** + **Baseline Report**.
-- Identify hotspots: complexity, churn, security exposure.
+All tests pass. No behavior changes unless justified with defect description + reproduction steps.
 
-### 2. PRIORITIZE — Score & Rank
+### Gate 2 — Style / Lint / Types
 
-Score = (Impact × Likelihood × BlastRadius) / Effort
+Zero warnings/errors from linter, type checker, formatter. Suppressions require written justification.
+
+### Gate 3 — Complexity & Structure
+
+| Metric                    | Target | Acceptable | Max (requires justification) |
+| ------------------------- | -----: | ---------: | ---------------------------: |
+| Cyclomatic (per function) |    ≤ 8 |       ≤ 10 |                         ≤ 15 |
+| Cognitive (per function)  |   ≤ 10 |       ≤ 15 |                         ≤ 25 |
+| Avg complexity (module)   |    ≤ 4 |          — |                            — |
+| Function length           | 30 LOC |          — |                            — |
+| Nesting depth             |      3 |          — |                            — |
+| File size                 |    250 |          — |                            — |
+
+> Sources: NIST SP 500-235, Microsoft Code Metrics, SonarSource Cognitive Complexity (2023).
+
+### Gate 4 — Duplication
+
+Target ≤ 3%. No copy/paste refactors.
+
+### Gate 5 — Performance
+
+No regressions in latency (p95), throughput, or memory. Create benchmarks if missing.
+
+### Gate 6 — Security
+
+No new attack surface. Validate inputs, encode outputs, defend SSRF/injection/XSS/traversal.
+
+---
+
+## Reference Tables
+
+### Code Smells → Refactorings (Fowler Taxonomy)
+
+| Category          | Smells                                                         | Refactorings                                          |
+| ----------------- | -------------------------------------------------------------- | ----------------------------------------------------- |
+| Bloaters          | Long Method, Large Class, Primitive Obsession, Long Param List | Extract Method/Class, Introduce Parameter Object      |
+| OO Abusers        | Switch Statements, Refused Bequest, Temporary Field            | Replace Conditional with Polymorphism, State/Strategy |
+| Change Preventers | Divergent Change, Shotgun Surgery                              | Extract Class, Move Method                            |
+| Dispensables      | Duplicate Code, Dead Code, Lazy Class, Speculative Generality  | Extract Method, Remove Dead Code, Inline/Collapse     |
+| Couplers          | Feature Envy, Inappropriate Intimacy, Message Chains           | Move Method, Hide Delegate                            |
+
+### SOLID → Refactorings
+
+| Principle | Trigger                                | Refactoring                   |
+| --------- | -------------------------------------- | ----------------------------- |
+| **S**RP   | >1 reason to change                    | Extract Class/Method          |
+| **O**CP   | Modification required for new features | Strategy, Polymorphism        |
+| **L**SP   | Subclass breaks contract               | Push Down, Extract Superclass |
+| **I**SP   | Clients depend on unused methods       | Extract/Split Interface       |
+| **D**IP   | High-level depends on low-level        | Dependency Injection          |
+
+### Incremental Patterns
+
+| Pattern               | Use Case             | Technique                                         |
+| --------------------- | -------------------- | ------------------------------------------------- |
+| Strangler Fig         | Legacy replacement   | Build alongside, route gradually, remove old      |
+| Branch by Abstraction | Shared code refactor | Abstraction layer → swap → remove abstraction     |
+| Feature Toggles       | Incremental rollout  | Guard paths, enable progressively, remove toggles |
+| Parallel Run          | High-risk changes    | Run both, compare outputs, alert on divergence    |
+
+### AI Guardrails (CodeScene 2024: ~65% AI refactors fail)
+
+| Guardrail            | Requirement                                 |
+| -------------------- | ------------------------------------------- |
+| Human Review         | Mandatory before merge                      |
+| Test Coverage        | ≥90% for AI-touched code                    |
+| Regression Suite     | Full suite, not just affected tests         |
+| Incremental Apply    | One suggestion at a time, validate each     |
+| Confidence Threshold | Reject <85% confidence or unclear rationale |
+| Characterization     | Golden master tests before AI changes       |
+
+---
+
+## Workflow
+
+### PASS 0 — Safety Net (before touching code)
+
+1. **Characterization tests:** Capture current behavior with golden master snapshots
+2. **Baseline snapshot:** Run `Measure-Baseline.ps1` → store `metrics-baseline.json`
+3. **Rollback ready:** Create feature branch; verify `git revert` path
+4. **CI green:** All tests passing before any changes
+
+### PASS 1 — Baseline
+
+- Map architecture: entry points, I/O boundaries, trust boundaries
+- Produce Metrics Dashboard + Baseline Report
+- Identify hotspots using: **Priority = Churn × Complexity**
+  - Churn: `git log --format='' --name-only | sort | uniq -c | sort -rn`
+  - Complexity: ESLint/SonarQube output
+
+### PASS 2 — Prioritize
+
+Score: **`(Impact × Likelihood × BlastRadius) / Effort`**
+
+Use the Risk/Effort Matrix:
+
+```text
+              High Impact
+                   │
+      ┌────────────┼────────────┐
+      │  SCHEDULE  │  DO FIRST  │
+ High │  (worth it │  (quick    │ Low
+Effort│   but big) │   wins)    │ Effort
+      ├────────────┼────────────┤
+      │   IGNORE   │  DELEGATE  │
+ Low  │  (not      │  (junior   │ High
+Impact│   worth)   │   task)    │ Impact
+      └────────────┴────────────┘
+```
 
 Output Top-20 table after baselining.
 
-### 3. DESIGN — Plan Each Refactor
+### PASS 3 — Design
 
-Define for each item: target state, constraints, acceptance tests, expected metric deltas.
+For each item: define target state, constraints, acceptance tests, expected metric deltas.
 
-### 4. EXECUTE — Micro-Commits
+**For complex refactors, use Mikado Method:**
 
-- Isolate pure functions first.
-- Add tests before risky changes.
-- Refactor behind stable interfaces.
+1. Try the change naively
+2. Note what breaks (dependencies)
+3. Revert immediately
+4. Address prerequisites first (leaves of dependency tree)
+5. Work back to original goal
 
-### 5. VALIDATE — Prove Results
+Identify **seams** (safe modification points) before cutting.
 
-Provide: test output, coverage (must not decrease), lint/type summaries, metric deltas.
+### PASS 4 — Execute
 
----
+- Isolate pure functions, add tests before risky changes, refactor behind stable interfaces
+- Red-Green-Refactor: failing test → pass → improve structure
+- No large rewrites unless code is actively dangerous
 
-## TypeScript & MCP SDK Rules
+**Commit Hygiene:**
 
-### Type Safety (Mandatory)
+- Max **400 LOC per PR** (cognitive load limit)
+- Message format: `refactor(scope): description [CC: X→Y, Cog: X→Y]`
+- One refactoring type per commit (Extract Method OR Rename, not both)
 
-```json
-{
-  "strict": true,
-  "noUncheckedIndexedAccess": true,
-  "noImplicitReturns": true,
-  "verbatimModuleSyntax": true
-}
-```
+### PASS 5 — Validate
 
-- Use `satisfies` over `as` for type validation.
-- Use discriminated unions for state machines.
-- Use type guards for runtime narrowing.
-- Explicit return types on exported functions.
-- 2–3 parameters max; use object destructuring for more.
-- Prefer `async/await`; never leave promises floating.
+Run `Compare-Metrics.ps1` to verify gates. Provide:
 
-### MCP Tool Pattern
-
-```typescript
-server.registerTool(
-  'tool_name',
-  {
-    title: 'Human Title',
-    description: 'LLM description',
-    inputSchema: z.object({ param: z.string().min(1).max(200) }).strict(),
-    outputSchema: z
-      .object({
-        ok: z.boolean(),
-        result: z.unknown().optional(),
-        error: z.object({ code: z.string(), message: z.string() }).optional(),
-      })
-      .strict(),
-  },
-  async (params) => {
-    const structured = { ok: true, result: await doWork(params) };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(structured) }],
-      structuredContent: structured,
-    };
-  }
-);
-```
-
-### Error Handling
-
-```typescript
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string' && error.length > 0) return error;
-  return 'Unknown error';
-}
-```
-
-- Try-catch at service boundaries only.
-- Return `isError: true` with `{ code, message }` structure.
-- Never throw primitives.
+- Test output (100% pass)
+- Coverage (must not decrease)
+- Lint/type summaries (zero errors)
+- Metric deltas (all gates pass)
+- Mutation score (if using Stryker): must not decrease
 
 ---
 
-## Key Refactoring Techniques
+## MCP SDK Alignment (TypeScript)
 
-| Technique               | When                     | Impact           |
-| ----------------------- | ------------------------ | ---------------- |
-| **Extract Function**    | Code block can be named  | CC −2 to −5      |
-| **Guard Clauses**       | Nested if-else chains    | Nesting −1 to −3 |
-| **Discriminated Union** | Type-based switching     | Type-safe        |
-| **Extract Module**      | File does too much (SRP) | +Cohesion        |
+- Explicit `.js` extensions, NodeNext resolution
+- Register tools with zod schemas; return `content` + `structuredContent`
+- No `any`; use `import type`; small single-purpose handlers
+- Validate at tool boundary; reject unknown fields; `isError: true` on failures
+- Per-session transports with DNS rebinding protection
+- Follow repo style: single quotes, semicolons, 80-col, sorted imports, nesting ≤2
 
 ---
 
-## Tooling Commands
+## Tooling
+
+### Core Commands
 
 ```bash
-npm run lint          # Complexity checks
-npm run type-check    # Type errors
-npm run test          # Tests + coverage
-npm run build         # Verify build
-
-# Duplication
-npx jscpd src --min-tokens 50 --threshold 3 --reporters console
+npm run lint && npm run type-check && npm run test:coverage && npm run build
+npx jscpd --min-tokens 50 --threshold 3 --reporters console,json
 ```
 
-### ESLint Rules
+### ESLint Configuration
 
-```javascript
-{
-  'complexity': ['error', { max: 5 }],
-  'sonarjs/cognitive-complexity': ['error', 10],
-  'max-depth': ['error', 2],
-  'max-params': ['error', 3],
+```js
+// eslint.config.mjs
+'complexity': ['error', { max: 10 }],
+'sonarjs/cognitive-complexity': ['error', 15],
+'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
+'max-depth': ['error', 3],
+'max-lines': ['error', { max: 250, skipBlankLines: true, skipComments: true }],
+```
+
+---
+
+## PowerShell Automation
+
+### Measure-Baseline.ps1
+
+```powershell
+<#
+.SYNOPSIS
+    Captures baseline metrics for refactoring comparison.
+.OUTPUTS
+    metrics-baseline.json in project root
+#>
+param([string]$OutFile = "metrics-baseline.json")
+
+$metrics = @{
+    timestamp = Get-Date -Format "o"
+    commit    = git rev-parse HEAD
+    complexity = @{}
+    duplication = $null
+    coverage = $null
+}
+
+# ESLint complexity (requires eslint-plugin-sonarjs)
+$eslintOutput = npm run lint -- --format json 2>$null | ConvertFrom-Json
+$metrics.complexity.errors = ($eslintOutput | ForEach-Object { $_.errorCount } | Measure-Object -Sum).Sum
+
+# jscpd duplication
+$jscpdOutput = npx jscpd --min-tokens 50 --reporters json --output .jscpd 2>$null
+if (Test-Path ".jscpd/jscpd-report.json") {
+    $dup = Get-Content ".jscpd/jscpd-report.json" | ConvertFrom-Json
+    $metrics.duplication = $dup.statistics.total.percentage
+}
+
+# Coverage (if exists)
+if (Test-Path "coverage/coverage-summary.json") {
+    $cov = Get-Content "coverage/coverage-summary.json" | ConvertFrom-Json
+    $metrics.coverage = $cov.total.lines.pct
+}
+
+$metrics | ConvertTo-Json -Depth 5 | Set-Content $OutFile
+Write-Host "✓ Baseline saved to $OutFile" -ForegroundColor Green
+```
+
+### Compare-Metrics.ps1
+
+```powershell
+<#
+.SYNOPSIS
+    Compares current metrics against baseline. Fails if gates violated.
+#>
+param(
+    [string]$Baseline = "metrics-baseline.json",
+    [switch]$Strict
+)
+
+if (-not (Test-Path $Baseline)) {
+    Write-Error "Baseline not found: $Baseline. Run Measure-Baseline.ps1 first."
+    exit 1
+}
+
+$before = Get-Content $Baseline | ConvertFrom-Json
+
+# Capture current
+& "$PSScriptRoot/Measure-Baseline.ps1" -OutFile "metrics-current.json"
+$after = Get-Content "metrics-current.json" | ConvertFrom-Json
+
+$failed = $false
+
+# Gate checks
+if ($after.complexity.errors -gt $before.complexity.errors) {
+    Write-Host "✗ Complexity errors increased: $($before.complexity.errors) → $($after.complexity.errors)" -ForegroundColor Red
+    $failed = $true
+}
+
+if ($after.duplication -gt $before.duplication) {
+    Write-Host "✗ Duplication increased: $($before.duplication)% → $($after.duplication)%" -ForegroundColor Red
+    $failed = $true
+}
+
+if ($after.coverage -lt $before.coverage) {
+    Write-Host "✗ Coverage decreased: $($before.coverage)% → $($after.coverage)%" -ForegroundColor Red
+    $failed = $true
+}
+
+if ($failed) {
+    Write-Host "`n⛔ GATE FAILED — Refactor does not meet quality standards" -ForegroundColor Red
+    exit 1
+} else {
+    Write-Host "`n✓ All gates passed" -ForegroundColor Green
+    Write-Host "  Complexity: $($before.complexity.errors) → $($after.complexity.errors)"
+    Write-Host "  Duplication: $($before.duplication)% → $($after.duplication)%"
+    Write-Host "  Coverage: $($before.coverage)% → $($after.coverage)%"
+}
+```
+
+### Invoke-SafeRefactor.ps1
+
+```powershell
+<#
+.SYNOPSIS
+    Wrapper for safe refactoring: test → change → test → revert if failed.
+.EXAMPLE
+    Invoke-SafeRefactor.ps1 -ScriptBlock { npm run lint:fix }
+#>
+param(
+    [scriptblock]$ScriptBlock,
+    [string]$CommitMessage = "refactor: automated change"
+)
+
+# Pre-flight
+Write-Host "🔍 Running pre-refactor tests..." -ForegroundColor Cyan
+npm run test --silent
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Pre-refactor tests failed. Fix tests before refactoring."
+    exit 1
+}
+
+# Snapshot
+git stash push -m "safe-refactor-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+try {
+    # Apply change
+    Write-Host "🔧 Applying refactor..." -ForegroundColor Cyan
+    & $ScriptBlock
+
+    # Post-flight
+    Write-Host "🔍 Running post-refactor tests..." -ForegroundColor Cyan
+    npm run test --silent
+    if ($LASTEXITCODE -ne 0) {
+        throw "Post-refactor tests failed"
+    }
+
+    # Verify metrics
+    & "$PSScriptRoot/Compare-Metrics.ps1"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Metrics gates failed"
+    }
+
+    Write-Host "✓ Refactor successful" -ForegroundColor Green
+    git stash drop
+
+} catch {
+    Write-Host "⛔ Refactor failed: $_" -ForegroundColor Red
+    Write-Host "↩ Reverting changes..." -ForegroundColor Yellow
+    git checkout .
+    git stash pop
+    exit 1
 }
 ```
 
 ---
 
-## Output Format
+## Advanced Techniques
 
-Produce in this exact order:
+### Characterization Testing (Golden Master)
 
-1. **Executive Summary** — what changed, measured outcomes
-2. **Metrics Dashboard** — before vs after, module-level
-3. **Baseline Report** — hotspots + targets
-4. **Top-20 Refactors** — ranked by risk × impact
-5. **Refactor Log** — before/after code + metrics proof
-6. **Verification Checklist** — CI-ready commands
+Before refactoring legacy code without specs:
 
-### Example — Baseline Report Row
+```typescript
+// Generate snapshots of current behavior
+import { functionUnderRefactor } from './legacy';
 
-| File            | Metric | Before | Target | Δ   | Priority | Effort |
-| --------------- | ------ | ------ | ------ | --- | -------- | ------ |
-| `src/parser.ts` | Max CC | 18     | 5      | -13 | High     | 16h    |
+describe('Characterization: functionUnderRefactor', () => {
+  const testCases = generateInputCombinations(); // edge cases, nulls, boundaries
+
+  testCases.forEach((input, i) => {
+    it(`behaves consistently for case ${i}`, () => {
+      expect(functionUnderRefactor(input)).toMatchSnapshot();
+    });
+  });
+});
+```
+
+### Seam Identification
+
+A **seam** is a place where you can alter behavior without editing the code itself:
+
+| Seam Type     | Example                           | Use For                |
+| ------------- | --------------------------------- | ---------------------- |
+| Object seam   | Constructor injection             | Replacing dependencies |
+| Preprocessing | Conditional compilation, env vars | Feature toggles        |
+| Link seam     | Module mocking (jest.mock)        | Isolating units        |
+
+### Mikado Method Graph
+
+For complex refactors, track dependencies:
+
+```text
+[Goal: Extract PaymentService]
+    ├── [Prereq: Create interface IPayment]
+    │       └── [Done ✓]
+    ├── [Prereq: Inject via constructor]
+    │       ├── [Prereq: Add DI container]
+    │       └── [Blocked: Config refactor needed]
+    └── [Prereq: Move validation logic]
+            └── [Done ✓]
+```
+
+Work from leaves (Done) toward root (Goal).
 
 ---
 
-## Start Condition
+## Examples
 
-**Produce Metrics Dashboard and Baseline Report first.** Do not execute refactors until baseline is complete.
+### Metrics Dashboard
 
----
+| Module      | CC (max) | Cog (max) | Avg | Dup % | Cov % | Note    |
+| ----------- | -------: | --------: | --: | ----: | ----: | ------- |
+| `parser.ts` |       18 |        24 | 6.1 |  12.3 |  78.2 | Hotspot |
 
-## References
+### Before/After Skeleton
 
-- [Clean Code TypeScript](https://github.com/labs42io/clean-code-typescript)
-- [Refactoring.guru](https://refactoring.guru/refactoring/techniques)
-- [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+**Before:** `src/parse.ts` — 42 LOC, CC=9, nesting=4
+
+**After:** Split into `parseLine()` CC=1, `mapParts()` CC=2, `parseData()` CC=2. Total: 3 functions ≤25 LOC each.
+
+**Δ:** CC -6, nesting -3, duplication 0%.

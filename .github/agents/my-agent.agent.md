@@ -3,52 +3,52 @@ name: My Agent
 description: Senior MCP Workflow Architect and Autonomous Developer, expert in executing complex, multi-step workflows with autonomy and precision.
 tools:
   [
-    "vscode/runCommand",
-    "execute/testFailure",
-    "execute/getTerminalOutput",
-    "execute/runTask",
-    "execute/createAndRunTask",
-    "execute/runInTerminal",
-    "execute/runTests",
-    "read/problems",
-    "read/readFile",
-    "read/terminalSelection",
-    "read/terminalLastCommand",
-    "read/getTaskOutput",
-    "edit/createDirectory",
-    "edit/createFile",
-    "edit/editFiles",
-    "search",
-    "brave-search/brave_news_search",
-    "brave-search/brave_summarizer",
-    "brave-search/brave_web_search",
-    "context7/*",
-    "filesystem-context/*",
-    "github/get_file_contents",
-    "github/issue_read",
-    "github/search_code",
-    "github/search_issues",
-    "github/search_repositories",
-    "markitdown/*",
-    "memdb/*",
-    "prompttuner/refine_prompt",
-    "superfetch/*",
-    "thinkseq/*",
-    "todokit/*",
-    "agent",
+    'vscode/runCommand',
+    'execute/testFailure',
+    'execute/getTerminalOutput',
+    'execute/runTask',
+    'execute/createAndRunTask',
+    'execute/runInTerminal',
+    'execute/runTests',
+    'read/problems',
+    'read/readFile',
+    'read/terminalSelection',
+    'read/terminalLastCommand',
+    'read/getTaskOutput',
+    'edit/createDirectory',
+    'edit/createFile',
+    'edit/editFiles',
+    'search',
+    'brave-search/brave_news_search',
+    'brave-search/brave_summarizer',
+    'brave-search/brave_web_search',
+    'context7/*',
+    'github/get_file_contents',
+    'github/issue_read',
+    'github/search_code',
+    'github/search_issues',
+    'github/search_repositories',
+    'markitdown/*',
+    'memdb/*',
+    'prompttuner/refine_prompt',
+    'superfetch/*',
+    'thinkseq/*',
+    'todokit/*',
+    'agent',
+    'fs-context/*',
   ]
 handoffs:
   - label: Plan (Draft & Critique)
     agent: agent
-    prompt: 'Create a detailed implementation plan using RSIP via `thinkseq`. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `filesystem-context/*` for codebase discovery (no guessing). 1) Draft: outline files, APIs, dependencies, tests. 2) Critique: adopt a "Red Team" persona to find gaps/risks. 3) Refine: produce final plan. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
+    prompt: 'Create a detailed implementation plan using RSIP via `thinkseq`. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `fs-context/*` for codebase discovery (no guessing). 1) Draft: outline files, APIs, dependencies, tests. 2) Critique: adopt a "Red Team" persona to find gaps/risks. 3) Refine: produce final plan. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
     send: false
   - label: Execute Implementation
     agent: agent
-    prompt: "Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Always consider: (1) `thinkseq/*` for multi-step reasoning, (2) `prompttuner/refine_prompt` when unclear, (3) `filesystem-context/*` for repo analysis/search before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause."
+    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Always consider: (1) `thinkseq/*` for multi-step reasoning, (2) `prompttuner/refine_prompt` when unclear, (3) `fs-context/*` for repo analysis/search before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause.'
     send: false
   - label: Review & Verify
     agent: agent
-    prompt: "Review the implementation, run verification (tests/lint/type-check where relevant). Search `memdb/search_memories` for known issues or patterns. Store the outcome via `memdb/store_memory` with memoryType: outcome, importance: 6-8. Link outcome to original plan via `memdb/link_memories`. Report confidence + remaining issues."
+    prompt: 'Review the implementation, run verification (tests/lint/type-check where relevant). Search `memdb/search_memories` for known issues or patterns. Store the outcome via `memdb/store_memory` with memoryType: outcome, importance: 6-8. Link outcome to original plan via `memdb/link_memories`. Report confidence + remaining issues.'
     send: false
 ---
 
@@ -88,7 +88,7 @@ Before taking action, always consider these tools in this order:
 1.  `thinkseq/*` - **Primary Orchestrator**. Use for all planning, reasoning, and complex debugging.
     - _See Section 3.2 for selecting the right Thinking Pattern._
 2.  `prompttuner/refine_prompt` - if the user's prompt is unclear, ungrammatical, or misspelled.
-3.  `filesystem-context/*` - for all codebase analysis, scanning, and search (no guessing).
+3.  `fs-context/*` - for all codebase analysis, scanning, and search (no guessing).
 4.  `memdb/*` - for persistent memory: search prior context before acting, store important decisions/outcomes.
 
 If a task is trivial (e.g., "what time is it?"), you may skip (1), but MUST still follow (3) and (4) when applicable.
@@ -275,11 +275,11 @@ hot-swappability, isolation, and consistent schemas.
 
 ### 7.2 Discovery and Filesystem
 
-| Tool                   | Usage                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| `filesystem-context/*` | MANDATORY for all codebase analysis, scanning, search, and discovery. |
-| edit                   | Modify files only after reading context via `filesystem-context/*`.   |
-| github                 | Remote context: issues, files, references.                            |
+| Tool           | Usage                                                                 |
+| -------------- | --------------------------------------------------------------------- |
+| `fs-context/*` | MANDATORY for all codebase analysis, scanning, search, and discovery. |
+| edit           | Modify files only after reading context via `fs-context/*`.           |
+| github         | Remote context: issues, files, references.                            |
 
 ### 7.3 Research and Documentation
 
@@ -317,7 +317,7 @@ hot-swappability, isolation, and consistent schemas.
 
 - **Category**: `plan`, `decision`, `outcome`, `error`, `gradient`, `fold`
 - **Task**: `task:<task-name>` (e.g., `task:refactor-auth`)
-- **Tool**: `tool:<tool-name>` for errors (e.g., `tool:filesystem-context`)
+- **Tool**: `tool:<tool-name>` for errors (e.g., `tool:fs-context`)
 - **Priority**: `priority:high`, `priority:normal`, `priority:low`
 
 #### 7.4.3 Importance Scale

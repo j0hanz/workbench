@@ -109,8 +109,8 @@ No new attack surface. Validate inputs, encode outputs, defend SSRF/injection/XS
 ### PASS 0 — Safety Net (before touching code)
 
 1. **Characterization tests:** Capture current behavior with golden master snapshots
-2. **Baseline snapshot:** Run `Measure-Baseline.ps1` → store `metrics-baseline.json`
-3. **Rollback ready:** Create feature branch; verify `git revert` path
+2. **Baseline snapshot:** Run `.\scripts\Quality-Gates.ps1 -Mode Measure` → creates `scripts/metrics-baseline.json`
+3. **Rollback ready:** Create feature branch; verify `git revert` path (or use `-Mode SafeRefactor` for automatic backups)
 4. **CI green:** All tests passing before any changes
 
 ### PASS 1 — Baseline
@@ -119,7 +119,7 @@ No new attack surface. Validate inputs, encode outputs, defend SSRF/injection/XS
 - Produce Metrics Dashboard + Baseline Report
 - Identify hotspots using: **Priority = Churn × Complexity**
   - Churn: `git log --format='' --name-only | sort | uniq -c | sort -rn`
-  - Complexity: ESLint/SonarQube output
+  - Complexity: ESLint/SonarQube output (captured in `metrics-baseline.json`)
 
 ### PASS 2 — Prioritize
 
@@ -159,6 +159,16 @@ Identify **seams** (safe modification points) before cutting.
 
 ### PASS 4 — Execute
 
+**Option A: Automated (recommended for scripted refactors)**
+
+```powershell
+.\scripts\Quality-Gates.ps1 -Mode SafeRefactor -Command "npm run lint -- --fix" -Description "Auto-fix lint"
+```
+
+This handles backup, execution, validation, and rollback automatically.
+
+**Option B: Manual (for complex multi-step refactors)**
+
 - Isolate pure functions, add tests before risky changes, refactor behind stable interfaces
 - Red-Green-Refactor: failing test → pass → improve structure
 - No large rewrites unless code is actively dangerous
@@ -171,13 +181,21 @@ Identify **seams** (safe modification points) before cutting.
 
 ### PASS 5 — Validate
 
-Run `Compare-Metrics.ps1` to verify gates. Provide:
+Run `.\scripts\Quality-Gates.ps1 -Mode Compare` to verify gates. Provide:
 
 - Test output (100% pass)
-- Coverage (must not decrease)
+- Coverage (must not decrease beyond threshold)
 - Lint/type summaries (zero errors)
 - Metric deltas (all gates pass)
 - Mutation score (if using Stryker): must not decrease
+
+```powershell
+# Standard validation
+.\scripts\Quality-Gates.ps1 -Mode Compare
+
+# Strict mode (any regression = fail)
+.\scripts\Quality-Gates.ps1 -Mode Compare -Strict -ReportFile "final-report.md"
+```
 
 ---
 
@@ -189,6 +207,102 @@ Run `Compare-Metrics.ps1` to verify gates. Provide:
 - Validate at tool boundary; reject unknown fields; `isError: true` on failures
 - Per-session transports with DNS rebinding protection
 - Follow repo style: single quotes, semicolons, 80-col, sorted imports, nesting ≤2
+
+---
+
+## Quality-Gates.ps1
+
+Single unified script for metrics capture, comparison, and safe refactoring.
+
+### Modes
+
+| Mode           | Purpose                                     |
+| -------------- | ------------------------------------------- |
+| `Measure`      | Capture metrics snapshot to JSON            |
+| `Compare`      | Compare current vs baseline, enforce gates  |
+| `SafeRefactor` | Execute refactor with rollback + validation |
+
+### Metrics Collected
+
+- **ESLint**: errors, warnings, fixable issues
+- **Duplication**: jscpd percentage and clone count
+- **Coverage**: lines, branches, functions (optional)
+- **Security**: npm audit vulnerabilities (optional)
+- **Tech Debt**: TODO/FIXME/HACK comment counts
+- **Dependencies**: outdated package counts (optional)
+
+### Usage
+
+```powershell
+# Capture baseline
+.\scripts\Quality-Gates.ps1 -Mode Measure
+
+# Quick baseline (skip slow checks)
+.\scripts\Quality-Gates.ps1 -Mode Measure -SkipCoverage -SkipSecurity -SkipDependencies
+
+# Compare against baseline
+.\scripts\Quality-Gates.ps1 -Mode Compare
+
+# Strict comparison with report
+.\scripts\Quality-Gates.ps1 -Mode Compare -Strict -ReportFile "report.md"
+
+# Safe refactor with auto-rollback
+.\scripts\Quality-Gates.ps1 -Mode SafeRefactor -Command "npm run lint -- --fix" -Description "Auto-fix"
+
+# Preview refactor (dry-run)
+.\scripts\Quality-Gates.ps1 -Mode SafeRefactor -Command "npm run format" -WhatIf
+```
+
+### Key Parameters
+
+| Parameter            | Modes        | Description                      |
+| -------------------- | ------------ | -------------------------------- |
+| `-SkipCoverage`      | Measure      | Skip test coverage (faster)      |
+| `-SkipSecurity`      | Measure      | Skip npm audit                   |
+| `-SkipDependencies`  | Measure      | Skip npm outdated                |
+| `-Strict`            | Compare      | Treat warnings as failures       |
+| `-CoverageThreshold` | Compare      | Max coverage drop allowed (%)    |
+| `-Command`           | SafeRefactor | Shell command to execute         |
+| `-SkipTests`         | SafeRefactor | Skip test validation             |
+| `-KeepBackup`        | SafeRefactor | Keep backup branch after success |
+
+### Exit Codes
+
+| Code | Meaning                        |
+| ---: | ------------------------------ |
+|    0 | Success / All gates passed     |
+|    1 | Pre-flight or gate failed      |
+|    2 | I/O or parse error             |
+|    3 | Validation failed              |
+|    4 | Metrics gates failed           |
+|    5 | Rollback completed (recovered) |
+|    6 | Fatal error                    |
+
+### Typical Workflow
+
+```powershell
+# 1. Capture baseline
+.\scripts\Quality-Gates.ps1 -Mode Measure
+
+# 2. Safe refactor
+.\scripts\Quality-Gates.ps1 -Mode SafeRefactor -Command "npm run lint -- --fix"
+
+# 3. Validate changes
+.\scripts\Quality-Gates.ps1 -Mode Compare -ReportFile "report.md"
+
+# 4. Commit
+git commit -m "refactor(scope): description [Errors: 5→0, Dup: 3%→1%]"
+```
+
+### CI Integration
+
+```yaml
+- name: Check Quality Gates
+  shell: pwsh
+  run: |
+    .\scripts\Quality-Gates.ps1 -Mode Compare -Strict
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+```
 
 ---
 
@@ -210,157 +324,6 @@ npx jscpd --min-tokens 50 --threshold 3 --reporters console,json
 'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
 'max-depth': ['error', 3],
 'max-lines': ['error', { max: 250, skipBlankLines: true, skipComments: true }],
-```
-
----
-
-## PowerShell Automation
-
-### Measure-Baseline.ps1
-
-```powershell
-<#
-.SYNOPSIS
-    Captures baseline metrics for refactoring comparison.
-.OUTPUTS
-    metrics-baseline.json in project root
-#>
-param([string]$OutFile = "metrics-baseline.json")
-
-$metrics = @{
-    timestamp = Get-Date -Format "o"
-    commit    = git rev-parse HEAD
-    complexity = @{}
-    duplication = $null
-    coverage = $null
-}
-
-# ESLint complexity (requires eslint-plugin-sonarjs)
-$eslintOutput = npm run lint -- --format json 2>$null | ConvertFrom-Json
-$metrics.complexity.errors = ($eslintOutput | ForEach-Object { $_.errorCount } | Measure-Object -Sum).Sum
-
-# jscpd duplication
-$jscpdOutput = npx jscpd --min-tokens 50 --reporters json --output .jscpd 2>$null
-if (Test-Path ".jscpd/jscpd-report.json") {
-    $dup = Get-Content ".jscpd/jscpd-report.json" | ConvertFrom-Json
-    $metrics.duplication = $dup.statistics.total.percentage
-}
-
-# Coverage (if exists)
-if (Test-Path "coverage/coverage-summary.json") {
-    $cov = Get-Content "coverage/coverage-summary.json" | ConvertFrom-Json
-    $metrics.coverage = $cov.total.lines.pct
-}
-
-$metrics | ConvertTo-Json -Depth 5 | Set-Content $OutFile
-Write-Host "✓ Baseline saved to $OutFile" -ForegroundColor Green
-```
-
-### Compare-Metrics.ps1
-
-```powershell
-<#
-.SYNOPSIS
-    Compares current metrics against baseline. Fails if gates violated.
-#>
-param(
-    [string]$Baseline = "metrics-baseline.json",
-    [switch]$Strict
-)
-
-if (-not (Test-Path $Baseline)) {
-    Write-Error "Baseline not found: $Baseline. Run Measure-Baseline.ps1 first."
-    exit 1
-}
-
-$before = Get-Content $Baseline | ConvertFrom-Json
-
-# Capture current
-& "$PSScriptRoot/Measure-Baseline.ps1" -OutFile "metrics-current.json"
-$after = Get-Content "metrics-current.json" | ConvertFrom-Json
-
-$failed = $false
-
-# Gate checks
-if ($after.complexity.errors -gt $before.complexity.errors) {
-    Write-Host "✗ Complexity errors increased: $($before.complexity.errors) → $($after.complexity.errors)" -ForegroundColor Red
-    $failed = $true
-}
-
-if ($after.duplication -gt $before.duplication) {
-    Write-Host "✗ Duplication increased: $($before.duplication)% → $($after.duplication)%" -ForegroundColor Red
-    $failed = $true
-}
-
-if ($after.coverage -lt $before.coverage) {
-    Write-Host "✗ Coverage decreased: $($before.coverage)% → $($after.coverage)%" -ForegroundColor Red
-    $failed = $true
-}
-
-if ($failed) {
-    Write-Host "`n⛔ GATE FAILED — Refactor does not meet quality standards" -ForegroundColor Red
-    exit 1
-} else {
-    Write-Host "`n✓ All gates passed" -ForegroundColor Green
-    Write-Host "  Complexity: $($before.complexity.errors) → $($after.complexity.errors)"
-    Write-Host "  Duplication: $($before.duplication)% → $($after.duplication)%"
-    Write-Host "  Coverage: $($before.coverage)% → $($after.coverage)%"
-}
-```
-
-### Invoke-SafeRefactor.ps1
-
-```powershell
-<#
-.SYNOPSIS
-    Wrapper for safe refactoring: test → change → test → revert if failed.
-.EXAMPLE
-    Invoke-SafeRefactor.ps1 -ScriptBlock { npm run lint:fix }
-#>
-param(
-    [scriptblock]$ScriptBlock,
-    [string]$CommitMessage = "refactor: automated change"
-)
-
-# Pre-flight
-Write-Host "🔍 Running pre-refactor tests..." -ForegroundColor Cyan
-npm run test --silent
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Pre-refactor tests failed. Fix tests before refactoring."
-    exit 1
-}
-
-# Snapshot
-git stash push -m "safe-refactor-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-
-try {
-    # Apply change
-    Write-Host "🔧 Applying refactor..." -ForegroundColor Cyan
-    & $ScriptBlock
-
-    # Post-flight
-    Write-Host "🔍 Running post-refactor tests..." -ForegroundColor Cyan
-    npm run test --silent
-    if ($LASTEXITCODE -ne 0) {
-        throw "Post-refactor tests failed"
-    }
-
-    # Verify metrics
-    & "$PSScriptRoot/Compare-Metrics.ps1"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Metrics gates failed"
-    }
-
-    Write-Host "✓ Refactor successful" -ForegroundColor Green
-    git stash drop
-
-} catch {
-    Write-Host "⛔ Refactor failed: $_" -ForegroundColor Red
-    Write-Host "↩ Reverting changes..." -ForegroundColor Yellow
-    git checkout .
-    git stash pop
-    exit 1
-}
 ```
 
 ---

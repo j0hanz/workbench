@@ -1,0 +1,176 @@
+{
+  "servers": {
+    "thinkseq": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/thinkseq-mcp@latest"]
+    },
+    "memdb": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/memdb@latest"]
+    },
+    "todokit": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/todokit-mcp@latest"]
+    },
+    "prompttuner": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/prompt-tuner-mcp-server@latest"],
+      "env": {
+        "LLM_PROVIDER": "google",
+        "LLM_MODEL": "gemini-2.0-flash-exp",
+        "GOOGLE_API_KEY": "${input:google-api-key}"
+      }
+    },
+    "fs-context": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/fs-context-mcp@latest", "${workspaceFolder}"]
+    },
+    "superFetch": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/superfetch@latest", "--stdio"]
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "${input:github-pat}"
+      }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp",
+        "--api-key",
+        "${input:context7-api-key}"
+      ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory@latest"]
+    },
+    "apify": {
+      "type": "http",
+      "url": "https://mcp.apify.com",
+      "headers": {
+        "Authorization": "Bearer ${input:apify-api-key}"
+      }
+    },
+    "markitdown": {
+      "type": "stdio",
+      "command": "py",
+      "args": ["-m", "markitdown_mcp"]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking@latest"]
+    },
+    "brave-search": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@brave/brave-search-mcp-server@latest",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "${input:brave-api-key}"
+      }
+    },
+    "everything": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"]
+    },
+    "microsoft.docs.mcp": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp"
+    }
+  },
+  "inputs": [
+    {
+      "id": "prompttuner-llm-provider",
+      "type": "promptString",
+      "description": "PromptTuner LLM Provider (openai, anthropic, or google)",
+      "default": "openai"
+    },
+    {
+      "id": "prompttuner-llm-model",
+      "type": "promptString",
+      "description": "PromptTuner LLM Model (e.g., gpt-4o, claude-3-5-sonnet-20241022, gemini-2.0-flash-exp)",
+      "default": "gpt-4o"
+    },
+    {
+      "password": true,
+      "id": "openai-api-key",
+      "type": "promptString",
+      "description": "OpenAI API Key (get from platform.openai.com/api-keys)"
+    },
+    {
+      "password": true,
+      "id": "anthropic-api-key",
+      "type": "promptString",
+      "description": "Anthropic API Key (get from console.anthropic.com)"
+    },
+    {
+      "password": true,
+      "id": "google-api-key",
+      "type": "promptString",
+      "description": "Google Gemini API Key (get from aistudio.google.com)"
+    },
+    {
+      "password": true,
+      "id": "exa-api-key",
+      "type": "promptString",
+      "description": "Exa AI API Key (get from dashboard.exa.ai/api-keys)"
+    },
+    {
+      "password": true,
+      "id": "github-pat",
+      "type": "promptString",
+      "description": "GitHub Personal Access Token"
+    },
+    {
+      "password": true,
+      "id": "apify-api-key",
+      "type": "promptString",
+      "description": "Apify API Key"
+    },
+    {
+      "password": true,
+      "id": "brave-api-key",
+      "type": "promptString",
+      "description": "Brave Search API Key"
+    },
+    {
+      "password": true,
+      "id": "context7-api-key",
+      "type": "promptString",
+      "description": "Context7 API Key"
+    },
+    {
+      "password": true,
+      "id": "gemini-api-key",
+      "type": "promptString",
+      "description": "Gemini API Key"
+    },
+    {
+      "id": "verifyConnection",
+      "type": "command",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/inspector"]
+    },
+    {
+      "id": "enforceMuiRules",
+      "type": "command",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "if (!(Test-Path .github/instructions)) { New-Item -ItemType Directory -Path .github/instructions -Force } ; Set-Content -Path .github/instructions/mui.md -Value '# Material UI MCP Rules\n\nUse the mui-mcp server to answer any Material UI questions:\n\n1. Call useMuiDocs to fetch docs for the relevant package.\n2. Call fetchDocs to pull any additional material, using only URLs returned by useMuiDocs.\n3. Repeat until you have all necessary context.\n4. Answer the question using the fetched content and cite the sources.\n'"
+      ]
+    }
+  ]
+}

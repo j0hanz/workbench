@@ -252,11 +252,34 @@ hot-swappability, isolation, and consistent schemas.
 
 ### 7.1 Reasoning and State (Mandatory)
 
-| Tool                        | Usage                                               |
-| --------------------------- | --------------------------------------------------- |
-| `thinkseq`                  | Sequential thinking with revision support.          |
-| `prompttuner/refine_prompt` | Fix typos, grammar, and ambiguity in user prompts.  |
-| `todokit/*`                 | Track multi-step plans, progress, and Memory Folds. |
+| Tool                        | Usage                                              |
+| --------------------------- | -------------------------------------------------- |
+| `thinkseq`                  | Sequential thinking with revision support.         |
+| `prompttuner/refine_prompt` | Fix typos, grammar, and ambiguity in user prompts. |
+| `todokit/*`                 | Track task progress (see 7.1.1 for details).       |
+
+#### 7.1.1 Todokit Tools
+
+| Tool                    | Usage                                                          |
+| ----------------------- | -------------------------------------------------------------- |
+| `todokit/add_todo`      | Add a single todo with description                             |
+| `todokit/add_todos`     | Add multiple todos in batch (1-50 items)                       |
+| `todokit/list_todos`    | List todos with optional status filter (pending/completed/all) |
+| `todokit/update_todo`   | Update a todo's description by ID                              |
+| `todokit/complete_todo` | Mark a todo as completed by ID                                 |
+| `todokit/delete_todo`   | Delete a single todo by ID                                     |
+| `todokit/delete_todos`  | Delete all todos (clears the list)                             |
+
+**Data Model**: `{id, description, completed, createdAt, updatedAt?, completedAt?}`
+
+**Workflow Pattern**:
+
+```text
+1. add_todo/add_todos  → Create tasks for multi-step work
+2. list_todos          → Review current state
+3. complete_todo       → Mark progress as steps complete
+4. delete_todos        → Clean up after task completion
+```
 
 ### 7.2 Discovery and Filesystem
 

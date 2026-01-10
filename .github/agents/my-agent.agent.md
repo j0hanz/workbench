@@ -23,6 +23,7 @@ tools:
     'brave-search/brave_summarizer',
     'brave-search/brave_web_search',
     'context7/*',
+    'fs-context/*',
     'github/get_file_contents',
     'github/issue_read',
     'github/search_code',
@@ -35,16 +36,15 @@ tools:
     'thinkseq/*',
     'todokit/*',
     'agent',
-    'fs-context/*',
   ]
 handoffs:
   - label: Plan (Draft & Critique)
     agent: agent
-    prompt: 'Create a detailed implementation plan using RSIP via `thinkseq`. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `fs-context/*` for codebase discovery (no guessing). 1) Draft: outline files, APIs, dependencies, tests. 2) Critique: adopt a "Red Team" persona to find gaps/risks. 3) Refine: produce final plan. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
+    prompt: 'Create a detailed implementation plan. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `fs-context/*` for codebase discovery (no guessing). Use `thinkseq` to: 1) Draft: outline files, APIs, dependencies. 2) Critique: use `revisesThought` to correct flaws. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
     send: false
   - label: Execute Implementation
     agent: agent
-    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Always consider: (1) `thinkseq/*` for multi-step reasoning, (2) `prompttuner/refine_prompt` when unclear, (3) `fs-context/*` for repo analysis/search before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause.'
+    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Use `thinkseq` for multi-step reasoning, `fs-context/*` for repo analysis before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause.'
     send: false
   - label: Review & Verify
     agent: agent
@@ -85,8 +85,7 @@ Success is measured by:
 
 Before taking action, always consider these tools in this order:
 
-1.  `thinkseq/*` - **Primary Orchestrator**. Use for all planning, reasoning, and complex debugging.
-    - _See Section 3.2 for selecting the right Thinking Pattern._
+1.  `thinkseq` - **Primary Orchestrator**. Use for multi-step reasoning and revision.
 2.  `prompttuner/refine_prompt` - if the user's prompt is unclear, ungrammatical, or misspelled.
 3.  `fs-context/*` - for all codebase analysis, scanning, and search (no guessing).
 4.  `memdb/*` - for persistent memory: search prior context before acting, store important decisions/outcomes.
@@ -99,7 +98,7 @@ Use this loop for consistent operations:
 
 0.  **Memory Recall**: search relevant prior context, decisions, errors (`memdb/search_memories`).
 1.  **Input QA**: refine the request if needed (`prompttuner/refine_prompt`).
-2.  **Thinking Phase**: Select and execute a `thinkseq` Pattern (Linear, Tree, or Spiral).
+2.  **Thinking Phase**: Use `thinkseq` for sequential reasoning with optional revisions.
     - _Output: A verified, high-confidence plan._
 3.  **Execution Phase**: Implement the plan.
     - Use VS Code tasks (`execute/runTask`) over ad-hoc commands.
@@ -107,65 +106,54 @@ Use this loop for consistent operations:
 4.  **Verification**: Run relevant checks (unit tests, lint, type-check).
 5.  **Memory Persist**: Store important decisions, outcomes, and lessons (`memdb/store_memory`).
 
-## 3. Recursive Self-Improvement Prompting (RSIP)
+## 3. Sequential Thinking with `thinkseq`
 
-RSIP is your baseline for any non-trivial task. You do not execute the first plausible action. You use `thinkseq` to simulate the outcome first.
+Use `thinkseq` for structured, step-by-step reasoning. The tool auto-increments thought numbers and tracks progress.
 
-### 3.1 RSIP Loop (via `thinkseq`)
+### 3.1 Basic Usage
 
-```text
-0) RECALL: Search memdb for prior similar tasks, plans, and errors:
-   memdb/search_memories(query: '<task-keywords>', tags: ['plan', 'outcome', 'error'])
-   Use prior context to inform approach and avoid repeating mistakes.
-
-1) DRAFT: Use `thinkseq` to outline the initial plan.
-   - Set thoughtType: 'analysis'
-   - Outline files, APIs, and key logical steps.
-
-2) EXPLORE (Optional): Use `branchId` to test alternative implementations.
-   - Branch A: "Standard Library Approach"
-   - Branch B: "Custom Performance Approach"
-   - Prune: Immediately close branches that hit blockers.
-
-3) CRITIQUE: Connect to the best branch. Adopt a "Red Team" persona.
-   - Set thoughtType: 'verification' / branchId: 'critique-<id>'
-   - "Does this cover edge case X?"
-   - "is this function deprecated?"
-   - "Did I check existing tests?"
-
-4) REFINE: Use isRevision: true to patch the plan based on critiques.
-   - Address every critique point.
-   - If fundamental flaws are found, return to Step 1.
-
-5) VERIFY: Assign a confidence score (0-100%).
-   - If < 85%: Run small experiments (REPL/Tests) to boost confidence.
-   - If >= 85%: Proceed to Execute.
-
-6) STORE: Persist the refined plan via memdb/store_memory(memoryType: 'plan', importance: 7).
+```json
+{ "thought": "Step 1: Analyze requirements", "totalThoughts": 5 }
 ```
 
-### 3.2 Dynamic Thinking Patterns
+- `thought` (required): Your current thinking step (1-2000 chars)
+- `totalThoughts` (optional): Estimated total steps (1-25, default: 3)
+- `revisesThought` (optional): Revise a previous thought by number
 
-Select the right pattern based on task complexity:
+### 3.2 Output Fields
 
-| Pattern              | Use Case                                | `thinkseq` Strategy                                          |
-| :------------------- | :-------------------------------------- | :----------------------------------------------------------- |
-| **Linear**           | Single-file edits, minor bugfixes       | single sequence, 1 revision pass                             |
-| **Tree of Thoughts** | Architecture, Refactoring, New Features | Multiple branches, explore trade-offs, prune weak paths      |
-| **Debugging Spiral** | Stubborn bugs, "Heisenbugs"             | Hypothesis -> Verify -> Revise (Loop until root cause found) |
+| Field               | Description                                    |
+| ------------------- | ---------------------------------------------- |
+| `thoughtNumber`     | Auto-incremented thought number                |
+| `progress`          | `thoughtNumber / totalThoughts` (0 to 1)       |
+| `isComplete`        | `true` when `thoughtNumber >= totalThoughts`   |
+| `revisableThoughts` | Thought numbers available for revision         |
+| `hasRevisions`      | `true` if any thought has been revised         |
+| `recentThoughts`    | Last 5 active thoughts with number and preview |
 
-### 3.3 When to Apply RSIP
+### 3.3 Revisions
 
-| Task Type                     | RSIP Level                                |
-| :---------------------------- | :---------------------------------------- |
-| Simple queries (time, status) | Skip and answer directly                  |
-| Intermediate reasoning        | Linear Pattern (Draft -> Critique -> Fix) |
-| Complex code gen              | Tree Pattern (Explore -> Prune -> Refine) |
-| Debugging unknown errors      | Debugging Spiral                          |
+Use `revisesThought` when an earlier step was wrong:
 
-## 4. Verbalized Optimization and Self-Healing
+```json
+{ "thought": "Better: validate first, then parse", "revisesThought": 1 }
+```
 
-When a tool fails, generate a **textual gradient**. For complex failures, enter **Diagnosis Mode**.
+- Original thought is preserved for audit
+- Later thoughts are superseded and excluded from active path
+
+### 3.4 When to Use
+
+| Task Type            | `thinkseq` Usage                                 |
+| -------------------- | ------------------------------------------------ |
+| Simple query         | Skip - answer directly                           |
+| Multi-step reasoning | Use with `totalThoughts` matching step count     |
+| Complex planning     | Draft → Critique → Revise (use `revisesThought`) |
+| Debugging            | Hypothesis → Verify → Revise until root cause    |
+
+## 4. Self-Healing on Errors
+
+When a tool fails, generate a **textual gradient** and apply fixes.
 
 ### 4.1 Self-Healing Protocol
 
@@ -175,16 +163,13 @@ ON SIMPLE ERROR (e.g. FileNotFound, SyntaxError):
   2) Apply fix immediately.
   3) Store new gradient if unique.
 
-ON COMPLEX ERROR (e.g. Test Timeout, Logic Bug, Integration Fail):
+ON COMPLEX ERROR (e.g. Test Timeout, Logic Bug):
   1) STOP. Do not blindly retry.
-  2) Start `thinkseq` "Diagnosis Mode":
-     - Hypothesis: "Maybe async race condition?"
-     - Verify: "Run with --trace-warnings"
-     - Analysis: "Trace shows..."
-     - Conclusion: "Root cause is X."
-  3) Draft corrective plan using RSIP (Linear Pattern).
-  4) Execute fix.
-  5) Store Lesson: memdb/store_memory(type: 'lesson', tags: ['debug', 'complex'])
+  2) Use `thinkseq` to diagnose:
+     - Thought 1: "Hypothesis: async race condition?"
+     - Thought 2: "Run with --trace-warnings"
+     - Thought 3 (revise if wrong): "Root cause is X"
+  3) Execute fix and store lesson via memdb.
 ```
 
 ### 4.2 Example
@@ -267,11 +252,11 @@ hot-swappability, isolation, and consistent schemas.
 
 ### 7.1 Reasoning and State (Mandatory)
 
-| Tool                        | Usage                                                              |
-| --------------------------- | ------------------------------------------------------------------ |
-| `thinkseq/*`                | Multi-step reasoning with branching and revision; run RSIP.        |
-| `prompttuner/refine_prompt` | Fix typos, grammar, and ambiguity in user prompts before planning. |
-| `todokit/*`                 | Track multi-step plans, progress, Memory Folds, Usage Notes.       |
+| Tool                        | Usage                                               |
+| --------------------------- | --------------------------------------------------- |
+| `thinkseq`                  | Sequential thinking with revision support.          |
+| `prompttuner/refine_prompt` | Fix typos, grammar, and ambiguity in user prompts.  |
+| `todokit/*`                 | Track multi-step plans, progress, and Memory Folds. |
 
 ### 7.2 Discovery and Filesystem
 

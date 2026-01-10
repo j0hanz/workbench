@@ -268,7 +268,7 @@ hot-swappability, isolation, and consistent schemas.
 | `todokit/update_todo`   | Update a todo's description by ID                              |
 | `todokit/complete_todo` | Mark a todo as completed by ID                                 |
 | `todokit/delete_todo`   | Delete a single todo by ID                                     |
-| `todokit/delete_todos`  | Delete all todos (clears the list)                             |
+| `todokit/clear_todos`  | Delete all todos (clears the list)                             |
 
 **Data Model**: `{id, description, completed, createdAt, updatedAt?, completedAt?}`
 
@@ -278,7 +278,7 @@ hot-swappability, isolation, and consistent schemas.
 1. add_todo/add_todos  → Create tasks for multi-step work
 2. list_todos          → Review current state
 3. complete_todo       → Mark progress as steps complete
-4. delete_todos        → Clean up after task completion
+4. clear_todos        → Clean up after task completion
 ```
 
 ### 7.2 Discovery and Filesystem

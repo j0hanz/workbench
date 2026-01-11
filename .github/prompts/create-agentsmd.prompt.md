@@ -132,12 +132,4 @@ content. Do not include extra commentary outside the code block.
 
 - Commit format: [convention]
 - Required checks: `[commands]`
-
-## Troubleshooting
-
-- [Known issues + fixes]
-
-## Open Questions / TODO
-
-- [Only if needed]
 ```

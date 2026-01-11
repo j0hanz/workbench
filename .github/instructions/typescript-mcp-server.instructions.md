@@ -14,7 +14,8 @@ applyTo: "**/*.ts, **/*.js, **/package.json"
 ### Versioning & Compatibility
 
 - Use `@modelcontextprotocol/sdk` v1.x for production servers
-- SDK supports Zod v3 and v4; this repo currently uses Zod v3.24.x. Import `z` from `zod` unless you intentionally pin `zod/v3` or `zod/v4`.
+- SDK supports Zod v3 and v4; these rules standardize on Zod v4.x.
+- Import `z` from `zod` (do not pin `zod/v3` unless you are intentionally using v3).
 - **v2 Migration Note**: SDK v2 (pre-alpha, stable Q1 2026) splits into `@modelcontextprotocol/server` and `@modelcontextprotocol/client`
 
 ### TypeScript & Imports
@@ -25,6 +26,12 @@ applyTo: "**/*.ts, **/*.js, **/package.json"
 - Explicit return types on exported functions
 - Enable `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules`
 - Use `prefer-const`, no `var`, prefer template literals
+
+### CLI Entrypoint (Shebang)
+
+- If the server is executed via `node dist/index.js` **or** exposed via `bin` in `package.json`, `src/index.ts` MUST start with this exact first line:
+  - `#!/usr/bin/env node`
+- The shebang must be the very first line in the file (no BOM, no blank line before it).
 
 ### Tool Implementation
 
@@ -94,6 +101,31 @@ outputSchema: z.strictObject({
   - Validate `Origin` header (MUST per spec 2025-11-25). If `Origin` is present and invalid, respond with HTTP 403.
   - Bind localhost for local use; require auth for remote use
   - Use `MCP-Session-Id` header for stateful sessions (Node/Express lowercases request header names, so you’ll read it as `req.headers['mcp-session-id']`)
+
+### Streamable HTTP (Spec 2025-11-25 Essentials)
+
+- MCP endpoint MUST support both `POST` and `GET`.
+  - `GET` MUST return `text/event-stream` or HTTP 405 (don’t leave it as 404).
+- Client `POST` MUST include `Accept` advertising both `application/json` and `text/event-stream`.
+- Session expiry: server MUST return HTTP 404 for expired `MCP-Session-Id`; client MUST start a new session by re-sending `initialize` (without a session id).
+- Protocol version header: clients MUST send `MCP-Protocol-Version: <negotiated-version>` on subsequent HTTP requests; invalid/unsupported MUST return HTTP 400.
+- SSE resumption: resuming always happens via `GET` + `Last-Event-ID` (even if the original stream was started by `POST`).
+- Multiple SSE streams: server MUST NOT broadcast the same JSON-RPC message over multiple streams.
+
+### Authorization (HTTP; Optional but Common for Remote Servers)
+
+- STDIO servers SHOULD NOT implement HTTP auth flows; use environment-provided credentials.
+- HTTP servers implementing auth MUST support Protected Resource Metadata (RFC 9728) discovery via either:
+  - `WWW-Authenticate: Bearer resource_metadata="..."` (recommended when returning 401), or
+  - `/.well-known/oauth-protected-resource[...]` fallback.
+- When responding with 401 challenges, servers SHOULD include `scope="..."` to guide least-privilege scope selection.
+- Token passthrough is forbidden: servers MUST NOT accept tokens not issued for the MCP server.
+
+### Tasks (Experimental)
+
+- If you support task-augmented requests, declare `capabilities.tasks` and only allow task augmentation where declared.
+- For tools, also honor `execution.taskSupport` (`required` | `optional` | `forbidden`).
+- Task cancellation uses `tasks/cancel` (do not use `notifications/cancelled` for task-augmented requests).
 
 ## Error Handling
 

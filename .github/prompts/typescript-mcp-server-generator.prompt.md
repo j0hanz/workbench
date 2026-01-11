@@ -18,6 +18,9 @@ Generate a Model Context Protocol server following these steps.
   - Use `createMcpExpressApp()` helper (auto DNS protection)
   - Or use `hostHeaderValidation` middleware manually
   - Validate `Origin` header (MUST per spec 2025-11-25). If `Origin` is present and invalid, respond with HTTP 403.
+  - MCP endpoint MUST support both `POST` and `GET` (GET may return SSE or HTTP 405)
+  - Client `POST` MUST send `Accept` including both `application/json` and `text/event-stream`
+  - Clients MUST send `MCP-Protocol-Version: <negotiated-version>` on subsequent HTTP requests; invalid/unsupported MUST return HTTP 400
   - Bind localhost for local use
   - Require auth for remote use
   - Use `MCP-Session-Id` header for stateful sessions (note: Node lowercases request headers → `req.headers['mcp-session-id']`)
@@ -206,6 +209,7 @@ export default defineConfig(
 **stdio transport:**
 
 ```typescript
+#!/usr/bin/env node
 import { createRequire } from "node:module";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -230,6 +234,7 @@ await server.connect(new StdioServerTransport());
 Default to stateless (no `sessionIdGenerator`) unless you explicitly need stateful sessions.
 
 ```typescript
+#!/usr/bin/env node
 import { createRequire } from "node:module";
 
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
@@ -248,6 +253,11 @@ const server = new McpServer(
 // DNS rebinding protection auto-enabled (CVE-2025-66414)
 const app = createMcpExpressApp({ host: "localhost" });
 
+// Spec: MCP endpoint must support GET too (may return SSE or 405)
+app.get("/mcp", (_req, res) => {
+  res.sendStatus(405);
+});
+
 app.post("/mcp", async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     enableJsonResponse: true,
@@ -265,6 +275,7 @@ If you enable stateful sessions (`sessionIdGenerator`), you must reuse transport
 **Streamable HTTP transport (manual setup with middleware):**
 
 ```typescript
+#!/usr/bin/env node
 import { createRequire } from "node:module";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -427,6 +438,9 @@ export function createToolResponse<T extends Record<string, unknown>>(
 11. Annotations are hints; do not use them as security
 12. Sampling and elicitation only when client capabilities allow it
 13. Schemas organized in `schemas/inputs.ts` and `schemas/outputs.ts`
+14. Prefer tool execution errors (not protocol errors) for invalid tool inputs so the model can self-correct
+15. Tool names should be 1–128 chars and only contain `[A-Za-z0-9_.-]`
+16. For tools with no parameters, prefer `z.strictObject({})` (reject unknown fields)
 
 ## Annotation Selection
 

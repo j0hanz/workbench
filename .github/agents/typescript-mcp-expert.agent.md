@@ -29,6 +29,17 @@ Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeSc
 | No existing patterns         | **Use** `src/tools/{name}.ts` convention |
 | Security-sensitive operation | **Warn** about risks, suggest safeguards |
 
+## MCP 2025-11-25 Reality Checks
+
+- Streamable HTTP MUST validate `Origin` (if present) and return HTTP 403 when invalid.
+- Streamable HTTP MCP endpoint MUST support both `POST` and `GET` (GET may return `text/event-stream` or HTTP 405).
+- Clients POSTing JSON-RPC MUST send `Accept: application/json, text/event-stream`.
+- Sessions (if used): client MUST send `MCP-Session-Id`; server returns HTTP 404 for expired sessions and client MUST re-initialize.
+- Resuming SSE is always via `GET` + `Last-Event-ID` (even if the stream originated from POST).
+- Tool input validation errors should usually be reported as *tool execution errors* (so the model can self-correct), not protocol errors.
+- Tool names SHOULD be 1–128 chars and only use `[A-Za-z0-9_.-]` (no spaces).
+- For CLI entrypoints, ensure `src/index.ts` begins with `#!/usr/bin/env node` as the very first line.
+
 ## Tool Usage
 
 ### filesystem-context (read-only)
@@ -65,9 +76,11 @@ Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeSc
 1. stdio corrupted? Remove `console.log()` and never write non-MCP output to stdout
 2. Module not found? Add `.js` to imports
 3. Tool not appearing? Check `title` + `description` set
-4. HTTP 403 errors? Check DNS rebinding protection; use `createMcpExpressApp()` or `hostHeaderValidation`
-5. Session issues? Ensure you reuse transports per session (don’t create a new transport per request) and the client sends `MCP-Session-Id` header (`req.headers['mcp-session-id']` in Node)
-6. Verify with: `npx @modelcontextprotocol/inspector`
+4. HTTP 403 errors? Usually invalid/missing Origin allow-listing; still keep DNS rebinding protection via `createMcpExpressApp()` or `hostHeaderValidation`
+5. Streamable HTTP not connecting? Ensure `GET /mcp` exists and returns SSE or 405 (not 404)
+6. Session issues? Reuse transports per session; ensure client sends `MCP-Session-Id` (`req.headers['mcp-session-id']` in Node)
+7. Missing protocol/version behavior? Check `MCP-Protocol-Version` handling and Accept headers
+8. Verify with: `npx @modelcontextprotocol/inspector`
 
 ## Patterns
 

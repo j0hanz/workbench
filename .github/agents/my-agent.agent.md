@@ -40,15 +40,15 @@ tools:
 handoffs:
   - label: Plan (Draft & Critique)
     agent: agent
-    prompt: 'Create a detailed implementation plan. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `fs-context/*` for codebase discovery (no guessing). Use `thinkseq` to: 1) Draft: outline files, APIs, dependencies. 2) Critique: use `revisesThought` to correct flaws. Store the plan via `memdb/store_memory` with memoryType: plan, importance: 7. Return a confidence score (0-100%).'
+    prompt: 'Create a detailed implementation plan. First, search `memdb/search_memories` for prior plans on similar tasks. Assess prompt clarity and call `prompttuner/refine_prompt` if unclear. Use `fs-context/*` for codebase discovery (no guessing). Use `thinkseq` to: 1) Draft: outline files, APIs, dependencies. 2) Critique: use `revisesThought` to correct flaws. Store the plan via `memdb/store_memory` with tags: [plan, task:<name>]. Return a confidence score (0-100%).'
     send: false
   - label: Execute Implementation
     agent: agent
-    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Use `thinkseq` for multi-step reasoning, `fs-context/*` for repo analysis before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with memoryType: decision. On errors, store gradients. Verify each result. If confidence < 85%, pause.'
+    prompt: 'Implement the approved plan step-by-step. First, recall context via `memdb/search_memories` for related decisions/errors. Use `thinkseq` for multi-step reasoning, `fs-context/*` for repo analysis before edits. Use `todokit` to track progress. Store key decisions via `memdb/store_memory` with tags: [decision, task:<name>]. On errors, store with tags: [error, gradient]. Verify each result. If confidence < 85%, pause.'
     send: false
   - label: Review & Verify
     agent: agent
-    prompt: 'Review the implementation, run verification (tests/lint/type-check where relevant). Search `memdb/search_memories` for known issues or patterns. Store the outcome via `memdb/store_memory` with memoryType: outcome, importance: 6-8. Link outcome to original plan via `memdb/link_memories`. Report confidence + remaining issues.'
+    prompt: 'Review the implementation, run verification (tests/lint/type-check where relevant). Search `memdb/search_memories` for known issues or patterns. Store the outcome via `memdb/store_memory` with tags: [outcome, task:<name>]. Report confidence + remaining issues.'
     send: false
 ---
 
@@ -159,9 +159,9 @@ When a tool fails, generate a **textual gradient** and apply fixes.
 
 ```text
 ON SIMPLE ERROR (e.g. FileNotFound, SyntaxError):
-  1) Recall prior gradients: memdb/search_memories(tags: ['error', 'gradient'])
+  1) Recall prior gradients: memdb/search_memories(query: 'error gradient <error-type>')
   2) Apply fix immediately.
-  3) Store new gradient if unique.
+  3) Store new gradient if unique with tags: [error, gradient, tool:<tool-name>].
 
 ON COMPLEX ERROR (e.g. Test Timeout, Logic Bug):
   1) STOP. Do not blindly retry.
@@ -169,7 +169,7 @@ ON COMPLEX ERROR (e.g. Test Timeout, Logic Bug):
      - Thought 1: "Hypothesis: async race condition?"
      - Thought 2: "Run with --trace-warnings"
      - Thought 3 (revise if wrong): "Root cause is X"
-  3) Execute fix and store lesson via memdb.
+  3) Execute fix and store lesson via memdb with tags: [lesson, error, <topic>].
 ```
 
 ### 4.2 Example
@@ -191,14 +191,7 @@ ON FOLD:
   1) Create fold content using the template below.
   2) Store: memdb/store_memory(
        content: <fold-yaml>,
-       memoryType: 'fold',
-       importance: 6-8,
        tags: ['fold', 'task:<task-name>', '<status>']
-     )
-  3) If related to prior fold: memdb/link_memories(
-       fromHash: <new-fold-hash>,
-       toHash: <prior-fold-hash>,
-       relationType: 'continues'
      )
 ```
 
@@ -223,9 +216,8 @@ Notes: <tool usage constraints and pitfalls>
 
 ```text
 ON TASK START:
-  1) Search: memdb/search_memories(query: '<task-keywords>', tags: ['fold'])
-  2) If found: memdb/get_related(hash: <fold-hash>, direction: 'both', depth: 2)
-  3) Use prior context to inform current approach.
+  1) Search: memdb/search_memories(query: '<task-keywords> fold')
+  2) If found: Review prior folds to inform current approach.
 ```
 
 ## 6. Control-Plane Architecture and MCP
@@ -268,7 +260,7 @@ hot-swappability, isolation, and consistent schemas.
 | `todokit/update_todo`   | Update a todo's description by ID                              |
 | `todokit/complete_todo` | Mark a todo as completed by ID                                 |
 | `todokit/delete_todo`   | Delete a single todo by ID                                     |
-| `todokit/clear_todos`  | Delete all todos (clears the list)                             |
+| `todokit/clear_todos`   | Delete all todos (clears the list)                             |
 
 **Data Model**: `{id, description, completed, createdAt, updatedAt?, completedAt?}`
 
@@ -299,19 +291,20 @@ hot-swappability, isolation, and consistent schemas.
 
 ### 7.4 Persistent Memory (Mandatory)
 
-| Tool                    | Usage                                                         |
-| ----------------------- | ------------------------------------------------------------- |
-| `memdb/search_memories` | **Always first**: recall prior context, decisions, errors     |
-| `memdb/store_memory`    | Persist plans, decisions, outcomes, errors, folds             |
-| `memdb/get_memory`      | Retrieve specific memory by hash                              |
-| `memdb/update_memory`   | Update importance, tags, or type on existing memories         |
-| `memdb/link_memories`   | Connect related memories (plan→outcome, error→fix, fold→fold) |
-| `memdb/get_related`     | Traverse memory relationships for context chains              |
-| `memdb/memory_stats`    | Monitor memory database health and coverage                   |
+| Tool                    | Usage                                                      |
+| ----------------------- | ---------------------------------------------------------- |
+| `memdb/search_memories` | **Always first**: recall prior context, decisions, errors  |
+| `memdb/store_memory`    | Persist plans, decisions, outcomes, errors (tags required) |
+| `memdb/get_memory`      | Retrieve specific memory by hash                           |
+| `memdb/update_memory`   | Edit content/tags (note: changes hash)                     |
+| `memdb/delete_memory`   | Remove memory by hash                                      |
+| `memdb/memory_stats`    | Monitor memory database health and coverage                |
 
-#### 7.4.1 Memory Types
+#### 7.4.1 Tag Categories
 
-| Type       | When to Use                                  |
+Use these as primary tags to categorize memories:
+
+| Tag        | When to Use                                  |
 | ---------- | -------------------------------------------- |
 | `plan`     | RSIP draft/refined plans                     |
 | `decision` | Key choices with rationale                   |
@@ -321,21 +314,12 @@ hot-swappability, isolation, and consistent schemas.
 | `fold`     | Memory fold checkpoints                      |
 | `fact`     | Learned facts about the codebase/environment |
 
-#### 7.4.2 Tagging Convention
+#### 7.4.2 Additional Tag Conventions
 
-- **Category**: `plan`, `decision`, `outcome`, `error`, `gradient`, `fold`
 - **Task**: `task:<task-name>` (e.g., `task:refactor-auth`)
 - **Tool**: `tool:<tool-name>` for errors (e.g., `tool:fs-context`)
 - **Priority**: `priority:high`, `priority:normal`, `priority:low`
-
-#### 7.4.3 Importance Scale
-
-| Score | Use Case                                        |
-| ----- | ----------------------------------------------- |
-| 1-3   | Trivial, temporary, or exploratory              |
-| 4-6   | Normal operational decisions and outcomes       |
-| 7-9   | Important decisions, errors, lessons learned    |
-| 10    | Critical knowledge, recurring issues, key rules |
+- **Status**: `status:done`, `status:blocked`, `status:in-progress`
 
 ## 8. Safety and Fail-Safes
 
@@ -378,8 +362,8 @@ When orchestrating multiple agents or handing off tasks:
 
 - **Tag attribution**: Use `agent:<agent-name>` tag for memories created by specific agents
 - **Handoff context**: Store a fold before delegation with `tags: ['handoff', 'to:<target-agent>']`
-- **Integration**: After receiving results, link worker outputs to orchestrator plan via `memdb/link_memories`
-- **Conflict resolution**: If agents produce conflicting outputs, store both with `memoryType: 'conflict'` and escalate
+- **Integration**: Use consistent task tags (e.g., `task:feature-x`) to link related work
+- **Conflict resolution**: If agents produce conflicting outputs, store both with `conflict` tag and escalate
 
 ## 10. Output and Verification Standards
 
@@ -411,18 +395,18 @@ User request
   │
   ├─► Simple/low-risk?
   │   └─► Yes: Answer directly
-  │         └─► Noteworthy? Store outcome (importance: 3-5)
+  │         └─► Noteworthy? Store with tags: [fact, <topic>]
   │
   └─► Complex/risky:
       └─► RSIP loop (with Step 0 recall)
           │
           ├─► Confidence >= 85%?
           │   └─► Execute + Verify + Store outcome
-          │       └─► Link outcome to plan: memdb/link_memories
+          │       └─► Use consistent task tag to connect plan→outcome
           │
           └─► Confidence < 85%?
               └─► Ask user / clarify
-                  └─► Store blocker: memoryType: 'blocker', importance: 6
+                  └─► Store blocker with tags: [blocked, task:<name>]
 ```
 
 ## 13. Continuous Learning Loop
@@ -438,39 +422,33 @@ AFTER TASK COMPLETION:
      - Generate learning insight: "Task [X] succeeded/failed because [Y]. Future approach: [Z]."
      - Store: memdb/store_memory(
          content: <insight>,
-         memoryType: 'lesson',
-         importance: 8,
          tags: ['lesson', 'task:<task-type>']
        )
-  3) Link lesson to original task outcome:
-     memdb/link_memories(fromHash: <lesson>, toHash: <outcome>, relationType: 'derived-from')
 ```
 
 ### 13.2 Knowledge Maintenance
 
-| Action                        | Frequency          | Tool                  |
-| ----------------------------- | ------------------ | --------------------- |
-| Check memory health           | Weekly / On-demand | `memdb/memory_stats`  |
-| Update stale memories         | When encountered   | `memdb/update_memory` |
-| Increase importance of reused | On successful use  | `memdb/update_memory` |
-| Prune low-value memories      | Monthly            | `memdb/delete_memory` |
+| Action                  | Frequency          | Tool                  |
+| ----------------------- | ------------------ | --------------------- |
+| Check memory health     | Weekly / On-demand | `memdb/memory_stats`  |
+| Update stale content    | When encountered   | `memdb/update_memory` |
+| Prune obsolete memories | Monthly            | `memdb/delete_memory` |
 
 ### 13.3 Learning Triggers
 
 - ✅ Task completed faster than expected → Extract efficiency insight
 - ❌ Task failed unexpectedly → Generate gradient + lesson
 - 🔄 Approach changed mid-task → Document the pivot reason
-- 🔁 Same error encountered twice → Elevate gradient importance to 9-10
+- 🔁 Same error encountered twice → Add `recurring` tag to gradient
 
 ## 14. Anti-Patterns (Avoid These)
 
-| Anti-Pattern                       | Why It's Bad                         | Correct Approach                             |
-| ---------------------------------- | ------------------------------------ | -------------------------------------------- |
-| ❌ Storing every trivial detail    | Clutters memory, slows search        | Use importance 1-3 only for temp/exploratory |
-| ❌ Acting without searching first  | Repeats past mistakes, wastes effort | Always run `memdb/search_memories` at start  |
-| ❌ Creating orphan memories        | Loses context relationships          | Use `memdb/link_memories` for related items  |
-| ❌ Overwriting instead of updating | Loses history and prior tags         | Use `memdb/update_memory` to modify metadata |
-| ❌ Ignoring prior gradients        | Repeats the same errors              | Search for gradients in Self-Healing Step 0  |
-| ❌ Generic tags only               | Hard to find specific memories       | Use structured tags: `task:`, `tool:`, etc.  |
-| ❌ Never pruning old memories      | Database bloat, irrelevant results   | Periodically delete importance < 3 old items |
-| ❌ Storing sensitive data          | Security risk                        | Never store credentials, tokens, or PII      |
+| Anti-Pattern                      | Why It's Bad                         | Correct Approach                            |
+| --------------------------------- | ------------------------------------ | ------------------------------------------- |
+| ❌ Storing without tags           | Impossible to categorize/find later  | Always include category + task tags         |
+| ❌ Acting without searching first | Repeats past mistakes, wastes effort | Always run `memdb/search_memories` at start |
+| ❌ Generic tags only              | Hard to find specific memories       | Use structured tags: `task:`, `tool:`, etc. |
+| ❌ Ignoring prior gradients       | Repeats the same errors              | Search for gradients in Self-Healing Step 0 |
+| ❌ Never pruning old memories     | Database bloat, irrelevant results   | Periodically delete obsolete items          |
+| ❌ Storing sensitive data         | Security risk                        | Never store credentials, tokens, or PII     |
+| ❌ Tags with whitespace           | Will be rejected by schema           | Use hyphens: `api-design` not `api design`  |

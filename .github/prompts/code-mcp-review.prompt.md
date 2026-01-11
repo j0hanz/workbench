@@ -12,6 +12,28 @@ No praise. No hedging. Every finding MUST include:
 
 If you can't produce a reliable reproduction/verification step, do not report it.
 
+## Reviewer Rubric (Severity + Evidence Bar)
+
+Classify each finding by severity and hold yourself to the evidence bar. When in doubt, downgrade severity unless you can show clear impact.
+
+### Severity
+
+Use these exact labels in outputs: `blocker | high | medium | low | nit`.
+
+- **Blocker** (`blocker`): Spec violation or security issue that breaks protocol correctness, leaks secrets, enables unauthorized access, or makes the server unusable.
+- **High** (`high`): Likely to break common clients or cause data loss/corruption; serious interoperability risk.
+- **Medium** (`medium`): Correctness/compatibility issue with workaround; partial feature break; important but not catastrophic.
+- **Low** (`low`): Minor spec mismatch, edge-case bug, or quality problem that doesn't materially affect interoperability.
+- **Nit** (`nit`): Style, naming, minor doc/ergonomics; no functional impact.
+
+### Evidence Bar (required for every finding)
+
+- **Evidence**: Point to the exact location (file path + line range) or an API trace/log snippet, and cite the relevant spec section/link.
+- **Repro**: Provide deterministic steps or a minimal request/response transcript to reproduce.
+- **Impact**: Explain what breaks (which clients, which flows, what security property).
+- **Fix**: Give a concrete change (API/behavior) that aligns with the spec.
+- **Verification**: Provide a post-fix check (unit/integration test, curl script, or trace expectation).
+
 ---
 
 ## References (use as ground truth)
@@ -90,7 +112,7 @@ Also record:
 
 ## Phase 2: Critical Defects (Stop Here)
 
-Any item below is an automatic fail.
+Any item below is an automatic fail. Report each one as `severity: blocker`.
 
 | #   | Defect                                         | Detection                                                                                                   | Impact                                            | Required Fix                                                                                                  |
 | --- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -114,7 +136,7 @@ Prefer ripgrep (`rg`) if available; otherwise `grep`.
 ```sh
 rg "console\\.log|process\\.stdout\\.write" src
 rg "createMcpExpressApp\(|hostHeaderValidation\(|StreamableHTTP" src
-rg "MCP-Protocol-Version|Mcp-Session-Id" src
+rg "MCP-Protocol-Version|MCP-Session-Id" src
 rg "registerTool\(|outputSchema|structuredContent" src
 rg "notifications/(tools|resources|prompts)/list_changed|resources/subscribe" src
 rg "completion/complete|prompts/get|resources/templates/list" src
@@ -162,17 +184,20 @@ server.server.sendLoggingMessage({ level: 'info', data: 'Starting...' });
 - Prefer the SDK's safe helpers:
   - `createMcpExpressApp()` (DNS rebinding protection defaults for localhost)
   - or `hostHeaderValidation([...allowedHosts])`
-- Single endpoint must support both `POST` and `GET` for Streamable HTTP.
-- `MCP-Protocol-Version` header is required; reject unsupported versions (400). If missing, default to 2025-03-26.
+- Single endpoint (the MCP endpoint) must support both `POST` and `GET` for Streamable HTTP.
+- Protocol version header:
+  - Clients MUST send `MCP-Protocol-Version: <version>` on HTTP requests.
+  - If the server receives an invalid or unsupported `MCP-Protocol-Version`, it MUST respond with `400 Bad Request`.
+  - Backwards-compat: if `MCP-Protocol-Version` is missing and the server has no other way to identify the version (e.g., no negotiated version from initialization), the server SHOULD assume `2025-03-26`.
 - **Accept header handling**:
-  - `POST` must accept `application/json` and optionally `text/event-stream`.
-  - `GET` must accept `text/event-stream` (for SSE streaming to client).
-  - `GET` without proper `Accept` header should be rejected.
+  - `POST`: client MUST include an `Accept` header listing BOTH `application/json` and `text/event-stream`.
+  - `GET`: client MUST include an `Accept` header listing `text/event-stream`.
+  - Server behavior MUST interoperate with those headers (do not 406/400 on the required Accept combinations).
 - **Content-Type**: `POST` requests must use `Content-Type: application/json`.
 - **Response rules**:
   - For JSON-RPC **requests**: respond with JSON or start SSE stream.
   - For **responses/notifications**: return **202 Accepted** with no body.
-  - For **invalid session IDs**: return **404 Not Found**.
+  - For **invalid/terminated session IDs**: return **404 Not Found**.
   - For **invalid requests**: return appropriate 4xx error.
 - Bind `localhost` / `127.0.0.1` by default for local servers.
 - If binding to `0.0.0.0` or exposing remotely: require authentication and explicit allowlists.
@@ -181,13 +206,38 @@ server.server.sendLoggingMessage({ level: 'info', data: 'Starting...' });
 
 **Session management (stateful mode)**:
 
-- `Mcp-Session-Id` header identifies the session after initialization.
-- Servers MUST NOT require `Mcp-Session-Id` on the **first request** (initialization).
-- After initialization, the server returns `Mcp-Session-Id` and the client MUST include it in all subsequent requests.
+- `MCP-Session-Id` header identifies the session after initialization.
+- Servers MUST NOT require `MCP-Session-Id` on the **first request** (initialization).
+- If the server assigns a session ID, it returns `MCP-Session-Id` on the HTTP response containing the `InitializeResult`.
+  - Session IDs MUST contain only visible ASCII characters (0x21 to 0x7E) and SHOULD be cryptographically secure.
+- After initialization, the client MUST include `MCP-Session-Id` in all subsequent HTTP requests.
+  - If the server requires a session ID, it SHOULD respond (for non-initialization requests missing `MCP-Session-Id`) with `400 Bad Request`.
 - Route all `POST`, `GET`, and `DELETE` requests for a session to the same transport instance.
 - **DELETE method**: MUST be implemented to close server-side session state (or return 405 if not supported).
 - Close transports on connection close (e.g., `res.on('close', ...)`).
 - For invalid or terminated session IDs, return **404**.
+  - When a client receives HTTP 404 in response to a request containing `MCP-Session-Id`, it MUST start a new session by sending a new `InitializeRequest` without a session ID.
+
+**SSE streaming / polling / resumability**:
+
+- For a POST carrying a JSON-RPC request, the server MUST respond with either:
+  - `Content-Type: application/json` (single JSON-RPC response object), OR
+  - `Content-Type: text/event-stream` (SSE stream for one or more messages).
+- If the server initiates an SSE stream:
+  - It SHOULD immediately send an SSE event with an event ID and an empty `data:` field to prime client reconnection (`Last-Event-ID`).
+  - It MAY close the connection without terminating the stream; clients SHOULD poll by reconnecting.
+  - If it closes the connection without terminating the stream, it SHOULD send an SSE `retry:` field first; clients MUST respect it.
+  - Disconnection MUST NOT be treated as cancellation; cancellation should be via `notifications/cancelled`.
+  - It SHOULD terminate the stream after emitting the JSON-RPC response for the originating request.
+- Listening via HTTP GET:
+  - Server MUST return `Content-Type: text/event-stream` OR `405 Method Not Allowed`.
+  - Server MUST NOT send JSON-RPC _responses_ on the GET stream unless resuming/redelivering a previously interrupted stream.
+- Multiple SSE connections:
+  - Client MAY connect multiple streams.
+  - Server MUST NOT broadcast the same JSON-RPC message to multiple streams.
+- Resumption:
+  - Client SHOULD resume via HTTP GET with `Last-Event-ID`.
+  - Server MUST NOT replay messages that would have been delivered on a different stream.
 
 **Common defect patterns**:
 
@@ -406,8 +456,12 @@ try {
 
 > **Note**: Tasks are an experimental feature for durable, potentially long-running operations.
 
-- Only expose tasks if the client declares the `tasks` capability during initialization.
-- Task support can also be negotiated at the tool level via `execution.taskSupport` in tool definitions.
+- Only use tasks if BOTH sides negotiate `capabilities.tasks` during initialization.
+- Capabilities are structured by request category (e.g., server: `tasks.list`, `tasks.cancel`, and `tasks.requests.tools.call`).
+- Tool calls add a second layer: tools MAY declare `execution.taskSupport` in `tools/list` results (`"required" | "optional" | "forbidden"`).
+  - If `tasks.requests.tools.call` is NOT declared by the server, clients MUST NOT task-augment `tools/call` regardless of `execution.taskSupport`.
+  - If `execution.taskSupport` is absent or `"forbidden"`, clients MUST NOT task-augment that tool; if they do, server SHOULD return `-32601`.
+  - If `execution.taskSupport` is `"required"`, clients MUST task-augment; if they don't, server MUST return `-32601`.
 
 **Task status lifecycle**:
 
@@ -420,20 +474,33 @@ working → input_required (waiting for user input via elicitation)
 
 **Required operations**:
 
-| Method         | Description                                           |
-| -------------- | ----------------------------------------------------- |
-| `tasks/list`   | List tasks with pagination; return stable identifiers |
-| `tasks/get`    | Get current status of a specific task                 |
-| `tasks/result` | Retrieve the final result of a completed task         |
-| `tasks/cancel` | Request cancellation of a running task                |
+| Method         | Description                                                                |
+| -------------- | -------------------------------------------------------------------------- |
+| `tasks/get`    | Get current task state; requestors poll until terminal or `input_required` |
+| `tasks/result` | Blocks until terminal; returns EXACTLY what the underlying request returns |
+| `tasks/list`   | (If supported) list tasks with pagination and `nextCursor`                 |
+| `tasks/cancel` | (If supported) request cancellation                                        |
 
 **Implementation rules**:
 
 - Use task updates to report progress for long-running work; keep status transitions consistent.
-- Implement `tasks/cancel` and move tasks to a terminal `cancelled` state.
+- Cancellation:
+  - Reject cancelling tasks already in terminal state with `-32602`.
+  - Upon valid cancellation, receiver SHOULD stop work and MUST transition to `cancelled` before responding.
+  - Once cancelled, task MUST remain cancelled even if execution later completes/fails.
 - **Important**: Do NOT use `notifications/cancelled` to cancel tasks; use `tasks/cancel` instead.
-- Tasks may have a TTL (time-to-live); implement cleanup for stale tasks.
-- Task progress can be reported via progress notifications tied to the task.
+- TTL/polling:
+  - Task responses MUST include `createdAt` and `lastUpdatedAt` (ISO 8601).
+  - Receiver MAY override requested `ttl`; `tasks/get` MUST return actual `ttl` (or `null` for unlimited).
+  - After TTL elapses, receiver MAY delete the task and results (even if still working).
+  - Receiver MAY include `pollInterval`; requestor SHOULD respect it.
+- Task/message association:
+  - All task-related requests/notifications/responses MUST include `_meta.io.modelcontextprotocol/related-task: { taskId }`.
+  - Exception: `tasks/get`, `tasks/list`, and `tasks/cancel` should NOT include related-task metadata (taskId is in params/result); receivers MUST ignore related-task metadata if present on those methods.
+  - `tasks/result` responses MUST include related-task metadata (because taskId is not in the result structure).
+- Status notifications:
+  - Receiver MAY send `notifications/tasks/status` when status changes, but requestors MUST NOT rely on it.
+  - If sent, `notifications/tasks/status` SHOULD NOT include related-task metadata (taskId is already in params).
 
 **Common defect patterns**:
 
@@ -448,8 +515,20 @@ working → input_required (waiting for user input via elicitation)
 **Authorization (HTTP only)**:
 
 - If exposed over HTTP, follow the MCP authorization spec (OAuth 2.1); do not invent ad-hoc token schemes.
-- Validate access tokens (audience/resource via RFC 8707 resource indicators), and **NEVER pass client tokens through to upstream APIs**.
-- Use HTTPS for auth flows and enforce exact redirect URIs/PKCE.
+- Protected resource metadata (RFC 9728):
+  - Server MUST implement OAuth 2.0 Protected Resource Metadata.
+  - Server MUST provide PRM discovery via either:
+    - `WWW-Authenticate` on `401 Unauthorized` including `resource_metadata="..."`, OR
+    - a well-known PRM endpoint (`/.well-known/oauth-protected-resource/...`).
+  - Server SHOULD include `scope="..."` in `WWW-Authenticate` to guide least-privilege scope selection.
+- Token handling:
+  - Authorization MUST be included on every HTTP request (even within the same logical session).
+  - Tokens MUST NOT be accepted via query string.
+  - Server MUST validate tokens per OAuth 2.1 and MUST validate the token audience/resource binding (RFC 8707).
+  - Server MUST only accept tokens issued for itself by its authorization server and MUST NOT accept/transit other tokens.
+- Runtime insufficient scope:
+  - Prefer `403 Forbidden` with `WWW-Authenticate: Bearer error="insufficient_scope", scope="...", resource_metadata="..."`.
+- If the codebase includes/ships an authorization server component: require PKCE (S256) and publish `code_challenge_methods_supported` in AS metadata.
 - STDIO servers should rely on local OS/process boundaries rather than HTTP auth.
 
 **DNS rebinding protection (MANDATORY for local HTTP servers)**:
@@ -547,12 +626,14 @@ working → input_required (waiting for user input via elicitation)
 
 ## Phase 4: Findings Output
 
-Return a JSON array sorted by severity (critical -> warning -> suggestion):
+Return a JSON array sorted by severity (`blocker` -> `high` -> `medium` -> `low` -> `nit`).
+
+`severity` MUST be one of: `blocker | high | medium | low | nit`.
 
 ```json
 [
   {
-    "severity": "critical | warning | suggestion",
+    "severity": "blocker | high | medium | low | nit",
     "category": "transport | schema | security | async | reliability | injection",
     "location": "src/tools/foo.ts:42",
     "issue": "Tool declares outputSchema but error path omits structuredContent",
@@ -570,26 +651,28 @@ Return a JSON array sorted by severity (critical -> warning -> suggestion):
 
 Prefer black-box verification with MCP Inspector.
 
-| Test                        | How                                                                          | Expected                                      |
-| --------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------- |
-| STDIO clean                 | Run via Inspector (`npx @modelcontextprotocol/inspector node dist/index.js`) | No parse errors; no stdout noise              |
-| Unknown fields rejected     | Call a tool with extra keys                                                  | Validation error, no crash                    |
-| Schema enforcement          | Call tool with wrong types                                                   | JSON-RPC error or `isError: true` tool result |
-| Protocol version mismatch   | Send unsupported `MCP-Protocol-Version` / `initialize.protocolVersion`       | 400 or JSON-RPC error                         |
-| Path traversal              | Try `../` or `file:///...` outside roots                                     | Denied                                        |
-| Timeout                     | Block network / slow endpoint                                                | Error within 10-30s                           |
-| Streamable HTTP host/origin | Send invalid `Host`/`Origin`                                                 | Rejected (typically 403)                      |
-| HTTP 202 behavior           | Send notifications/responses over POST                                       | HTTP 202 Accepted with no body                |
-| DELETE session              | Send DELETE to session endpoint                                              | 200 (session closed) or 405 (not supported)   |
-| Invalid session ID          | Send request with invalid `Mcp-Session-Id`                                   | HTTP 404 Not Found                            |
-| Session correctness         | Initialize then call tool using returned session header                      | Works across subsequent requests              |
-| ListChanged notifications   | Change tools/resources/prompts list                                          | `notifications/*/list_changed` emitted        |
-| Completion                  | Call `completion/complete` for prompt/resource args                          | Results returned (<= 100)                     |
-| Cancellation                | Cancel a long-running request                                                | Work stops; no success result                 |
-| Progress monotonicity       | Observe progress notifications                                               | Values increase (except phase resets)         |
-| Tasks lifecycle             | Create task, check status, cancel                                            | Status: working → cancelled                   |
-| Audio content               | Return audio in tool result (if supported)                                   | Proper base64 + mimeType                      |
-| Pagination cursor           | List with cursor continuation                                                | Stable results; cursor is opaque              |
+| Test                        | How                                                                          | Expected                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| STDIO clean                 | Run via Inspector (`npx @modelcontextprotocol/inspector node dist/index.js`) | No parse errors; no stdout noise                                                                     |
+| Unknown fields rejected     | Call a tool with extra keys                                                  | Validation error, no crash                                                                           |
+| Schema enforcement          | Call tool with wrong types                                                   | JSON-RPC error or `isError: true` tool result                                                        |
+| Protocol version mismatch   | Send unsupported `MCP-Protocol-Version` / `initialize.protocolVersion`       | 400 or JSON-RPC error                                                                                |
+| Path traversal              | Try `../` or `file:///...` outside roots                                     | Denied                                                                                               |
+| Timeout                     | Block network / slow endpoint                                                | Error within 10-30s                                                                                  |
+| Streamable HTTP host/origin | Send invalid `Host`/`Origin`                                                 | Rejected (typically 403)                                                                             |
+| Auth PRM discovery          | Call protected endpoint with no `Authorization`                              | 401 with `WWW-Authenticate: Bearer resource_metadata="..."` (optional `scope`)                       |
+| Insufficient scope          | Call protected endpoint with token lacking scope                             | 403 with `WWW-Authenticate: Bearer error="insufficient_scope" ...`                                   |
+| HTTP 202 behavior           | Send notifications/responses over POST                                       | HTTP 202 Accepted with no body                                                                       |
+| DELETE session              | Send DELETE to session endpoint                                              | 200 (session closed) or 405 (not supported)                                                          |
+| Invalid session ID          | Send request with invalid `MCP-Session-Id`                                   | HTTP 404 Not Found                                                                                   |
+| Session correctness         | Initialize then call tool using returned session header                      | Works across subsequent requests                                                                     |
+| ListChanged notifications   | Change tools/resources/prompts list                                          | `notifications/*/list_changed` emitted                                                               |
+| Completion                  | Call `completion/complete` for prompt/resource args                          | Results returned (<= 100)                                                                            |
+| Cancellation                | Cancel a long-running request                                                | Work stops; no success result                                                                        |
+| Progress monotonicity       | Observe progress notifications                                               | Values increase (except phase resets)                                                                |
+| Tasks lifecycle             | Create task, poll `tasks/get`, retrieve via `tasks/result`, cancel           | Valid status transitions; related-task `_meta` on task messages; cancel terminal rejects with -32602 |
+| Audio content               | Return audio in tool result (if supported)                                   | Proper base64 + mimeType                                                                             |
+| Pagination cursor           | List with cursor continuation                                                | Stable results; cursor is opaque                                                                     |
 
 ---
 
@@ -600,7 +683,7 @@ Prefer black-box verification with MCP Inspector.
 ```sh
 rg "console\\.log|process\\.stdout\\.write" src
 rg "createMcpExpressApp\(|hostHeaderValidation\(|StreamableHTTP" src
-rg "MCP-Protocol-Version|Mcp-Session-Id" src
+rg "MCP-Protocol-Version|MCP-Session-Id" src
 rg "outputSchema|structuredContent" src
 rg "notifications/(tools|resources|prompts)/list_changed|resources/subscribe" src
 rg "completion/complete|prompts/get|resources/templates/list" src
@@ -615,7 +698,7 @@ rg "audience|priority|lastModified|annotations" src
 ```sh
 grep -R "console.log" src --include="*.ts"
 grep -R "createMcpExpressApp\\|hostHeaderValidation\\|StreamableHTTP" src --include="*.ts"
-grep -R "MCP-Protocol-Version\\|Mcp-Session-Id" src --include="*.ts"
+grep -R "MCP-Protocol-Version\\|MCP-Session-Id" src --include="*.ts"
 grep -R "outputSchema" src --include="*.ts"
 grep -R "structuredContent" src --include="*.ts"
 grep -R "tasks/list\\|tasks/get\\|tasks/cancel" src --include="*.ts"

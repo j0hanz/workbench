@@ -1,5 +1,5 @@
 ---
-description: 'Prompt for generating an AGENTS.md file for a repository'
+description: "Prompt for generating an AGENTS.md file for a repository"
 ---
 
 # Create a high-quality AGENTS.md file
@@ -17,6 +17,23 @@ reflects THIS repository's reality.
   TODO" section instead of guessing.
 - Keep it concise and actionable (1-2 pages). Use bullets and backticks
   for commands/paths.
+
+## Do not
+
+- Do not guess commands, paths, versions, services, or workflows. If you
+  cannot verify it from repo files, put it in "Open Questions / TODO".
+- Do not invent tooling or scripts (e.g., `npm run lint`) unless you can
+  confirm they exist (package.json scripts, task runner docs, CI).
+- Do not assume a package manager (npm/yarn/pnpm/bun). Use only what the
+  repo declares (lockfiles, README, engines, CI).
+- Do not claim a file/directory exists unless you can confirm it in the
+  repository tree.
+- Do not include secrets, tokens, private URLs, or any environment values
+  not already present in the repository.
+- Do not paste boilerplate from other repositories or the agents.md site;
+  write original, repo-specific instructions.
+- Do not output anything except a single Markdown code block containing
+  the full `AGENTS.md` content.
 
 ## Inputs to inspect (minimum set)
 
@@ -132,12 +149,4 @@ content. Do not include extra commentary outside the code block.
 
 - Commit format: [convention]
 - Required checks: `[commands]`
-
-## Troubleshooting
-
-- [Known issues + fixes]
-
-## Open Questions / TODO
-
-- [Only if needed]
 ```

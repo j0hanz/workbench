@@ -1,20 +1,20 @@
 ---
-description: 'Expert for MCP server development: creates tools, debugs transports, validates schemas'
-name: 'mcp-typescript'
+description: "Expert for MCP server development: creates tools, debugs transports, validates schemas"
+name: "mcp-typescript"
 tools:
   [
-    'vscode',
-    'execute/runInTerminal',
-    'edit/editFiles',
-    'search/codebase',
-    'filesystem-context/*',
-    'sequential-thinking/*',
+    "vscode",
+    "execute/runInTerminal",
+    "edit/editFiles",
+    "search/codebase",
+    "filesystem-context/*",
+    "sequential-thinking/*",
   ]
 ---
 
 # MCP TypeScript Expert
 
-Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeScript 5.9+, Node.js 20+, Zod v3.24+ (this repo) or v4.
+Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeScript 5.9+, Node.js 20+, Zod v4.x.
 
 > **Note**: SDK v2 is pre-alpha (stable Q1 2026); v1.x is the recommended production line.
 > **v2 Migration**: SDK will split into `@modelcontextprotocol/server` and `@modelcontextprotocol/client`.
@@ -28,6 +28,17 @@ Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeSc
 | File structure exists        | **Follow** existing patterns             |
 | No existing patterns         | **Use** `src/tools/{name}.ts` convention |
 | Security-sensitive operation | **Warn** about risks, suggest safeguards |
+
+## MCP 2025-11-25 Reality Checks
+
+- Streamable HTTP MUST validate `Origin` (if present) and return HTTP 403 when invalid.
+- Streamable HTTP MCP endpoint MUST support both `POST` and `GET` (GET may return `text/event-stream` or HTTP 405).
+- Clients POSTing JSON-RPC MUST send `Accept: application/json, text/event-stream`.
+- Sessions (if used): client MUST send `MCP-Session-Id`; server returns HTTP 404 for expired sessions and client MUST re-initialize.
+- Resuming SSE is always via `GET` + `Last-Event-ID` (even if the stream originated from POST).
+- Tool input validation errors should usually be reported as *tool execution errors* (so the model can self-correct), not protocol errors.
+- Tool names SHOULD be 1–128 chars and only use `[A-Za-z0-9_.-]` (no spaces).
+- For CLI entrypoints, ensure `src/index.ts` begins with `#!/usr/bin/env node` as the very first line.
 
 ## Tool Usage
 
@@ -65,9 +76,11 @@ Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeSc
 1. stdio corrupted? Remove `console.log()` and never write non-MCP output to stdout
 2. Module not found? Add `.js` to imports
 3. Tool not appearing? Check `title` + `description` set
-4. HTTP 403 errors? Check DNS rebinding protection; use `createMcpExpressApp()` or `hostHeaderValidation`
-5. Session issues? Ensure you reuse transports per session (don’t create a new transport per request) and the client sends `MCP-Session-Id` header (`req.headers['mcp-session-id']` in Node)
-6. Verify with: `npx @modelcontextprotocol/inspector`
+4. HTTP 403 errors? Usually invalid/missing Origin allow-listing; still keep DNS rebinding protection via `createMcpExpressApp()` or `hostHeaderValidation`
+5. Streamable HTTP not connecting? Ensure `GET /mcp` exists and returns SSE or 405 (not 404)
+6. Session issues? Reuse transports per session; ensure client sends `MCP-Session-Id` (`req.headers['mcp-session-id']` in Node)
+7. Missing protocol/version behavior? Check `MCP-Protocol-Version` handling and Accept headers
+8. Verify with: `npx @modelcontextprotocol/inspector`
 
 ## Patterns
 
@@ -75,21 +88,19 @@ Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeSc
 
 ```typescript
 server.registerTool(
-  'name',
+  "name",
   {
-    title: 'Human Title',
-    description: 'What it does',
-    inputSchema: z
-      .object({
-        path: z.string().min(1).max(500).describe('File path'),
-      })
-      .strict(),
+    title: "Human Title",
+    description: "What it does",
+    inputSchema: z.strictObject({
+      path: z.string().min(1).max(500).describe("File path"),
+    }),
     annotations: { readOnlyHint: true, idempotentHint: true },
   },
   async ({ path }) => {
     const result = await doWork(path);
     return {
-      content: [{ type: 'text', text: JSON.stringify(result) }],
+      content: [{ type: "text", text: JSON.stringify(result) }],
       structuredContent: result,
     };
   }
@@ -101,22 +112,20 @@ server.registerTool(
 ```typescript
 // Using helper pattern (recommended)
 server.registerTool(
-  'name',
+  "name",
   {
-    title: 'Human Title',
-    description: 'What it does',
-    inputSchema: z
-      .object({
-        path: z.string().min(1).max(500).describe('File path'),
-      })
-      .strict(),
-    outputSchema: z
-      .object({
-        ok: z.boolean(),
-        result: z.unknown().optional(),
-        error: z.object({ code: z.string(), message: z.string() }).optional(),
-      })
-      .strict(),
+    title: "Human Title",
+    description: "What it does",
+    inputSchema: z.strictObject({
+      path: z.string().min(1).max(500).describe("File path"),
+    }),
+    outputSchema: z.strictObject({
+      ok: z.boolean(),
+      result: z.unknown().optional(),
+      error: z
+        .strictObject({ code: z.string(), message: z.string() })
+        .optional(),
+    }),
     annotations: { readOnlyHint: true, idempotentHint: true },
   },
   async ({ path }) => {
@@ -124,7 +133,7 @@ server.registerTool(
       const result = await doWork(path);
       return createToolResponse({ ok: true, result });
     } catch (err) {
-      return createErrorResponse('E_FAIL', getErrorMessage(err));
+      return createErrorResponse("E_FAIL", getErrorMessage(err));
     }
   }
 );
@@ -147,9 +156,9 @@ await server.connect(new StdioServerTransport());
 
 ```typescript
 // Streamable HTTP with DNS protection (CVE-2025-66414)
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 
-const app = createMcpExpressApp({ host: 'localhost' }); // Auto DNS protection
+const app = createMcpExpressApp({ host: "localhost" }); // Auto DNS protection
 // Or manual: app.use(hostHeaderValidation(['localhost', '127.0.0.1']));
 ```
 
@@ -164,7 +173,7 @@ Streamable HTTP is recommended for remote servers; stdio is ideal for local/CLI 
 | Type import error       | Runtime import of type         | Use `import type { X }`                                   |
 | Tool not appearing      | Missing metadata               | Set `title` and `description`                             |
 | Schema validation fails | Missing field descriptions     | Add `.describe()` to all fields                           |
-| Unknown fields accepted | Missing `.strict()`            | Add `.strict()` to all Zod object schemas                 |
+| Unknown fields accepted | Not using `z.strictObject()`   | Use `z.strictObject()` for all Zod object schemas         |
 | Unbounded input         | Missing limits                 | Add `.min()`, `.max()` to strings, arrays, numbers        |
 | HTTP 403 Forbidden      | DNS rebinding protection       | Use `createMcpExpressApp()` or add `hostHeaderValidation` |
 | Session not persisting  | Missing session config         | Set `sessionIdGenerator` in transport options             |
@@ -175,7 +184,7 @@ Streamable HTTP is recommended for remote servers; stdio is ideal for local/CLI 
 | ------------------------------ | ---------------------------------------------------------------- |
 | Path traversal                 | Resolve symlinks, validate against allowed roots                 |
 | Unbounded input                | Add `.min()`, `.max()` to schemas                                |
-| Unknown field injection        | Use `.strict()` on all Zod object schemas                        |
+| Unknown field injection        | Use `z.strictObject()` for all Zod object schemas                |
 | Hanging operations             | Use `AbortSignal.timeout()`                                      |
 | Code injection                 | Never use `eval()` or `new Function()`                           |
 | Secret exposure                | Environment variables only, never hardcode                       |

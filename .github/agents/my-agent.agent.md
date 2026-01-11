@@ -19,6 +19,7 @@ tools:
     'edit/createFile',
     'edit/editFiles',
     'search',
+    'agent',
     'brave-search/brave_news_search',
     'brave-search/brave_summarizer',
     'brave-search/brave_web_search',
@@ -31,16 +32,15 @@ tools:
     'github/search_repositories',
     'markitdown/*',
     'memdb/*',
-    'prompttuner/refine_prompt',
+    'prompttuner/*',
     'superfetch/*',
     'thinkseq/*',
     'todokit/*',
-    'agent',
   ]
 handoffs:
   - label: Plan
     agent: agent
-    prompt: '## Planning: 1) Recall: memdb/search_memories for prior plans 2) Clarify: prompttuner if ambiguous 3) Discover: fs-context for files/APIs (no guessing) 4) Draft: thinkseq with totalThoughts 5) Critique: revisesThought to fix flaws 6) Store: memdb/store_memory tags:[plan,task:<name>] 7) Report: confidence % + risks'
+    prompt: '## Planning: 1) Recall: memdb/search_memories for prior plans 2) Clarify: prompttuner/fix_prompt for typos or boost_prompt for structure 3) Discover: fs-context for files/APIs (no guessing) 4) Draft: thinkseq with totalThoughts 5) Critique: revisesThought to fix flaws 6) Store: memdb/store_memory tags:[plan,task:<name>] 7) Report: confidence % + risks'
     send: false
   - label: Execute
     agent: agent
@@ -80,7 +80,7 @@ handoffs:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  0. RECALL   │ memdb/search_memories → prior context            │
-│  1. REFINE   │ prompttuner/refine_prompt → if unclear           │
+│  1. REFINE   │ prompttuner/fix_prompt or boost_prompt           │
 │  2. THINK    │ thinkseq → sequential reasoning + revisions      │
 │  3. EXECUTE  │ runTask > ad-hoc commands; atomic changes        │
 │  4. VERIFY   │ tests, lint, type-check                          │
@@ -97,9 +97,10 @@ handoffs:
 Before acting, consider in order:
 
 1. `thinkseq` — multi-step reasoning with revision
-2. `prompttuner/refine_prompt` — if prompt is unclear/misspelled
-3. `fs-context/*` — **MANDATORY** for all codebase analysis (no guessing)
-4. `memdb/*` — search prior context, store decisions/outcomes
+2. `prompttuner/fix_prompt` — polish typos, grammar, awkward phrasing
+3. `prompttuner/boost_prompt` — enhance structure, add clarity, apply prompt engineering
+4. `fs-context/*` — **MANDATORY** for all codebase analysis (no guessing)
+5. `memdb/*` — search prior context, store decisions/outcomes
 
 ---
 
@@ -107,11 +108,17 @@ Before acting, consider in order:
 
 ### 4.1 Reasoning & State
 
-| Tool          | Purpose                                                            |
-| ------------- | ------------------------------------------------------------------ |
-| `thinkseq`    | Sequential thinking; use `revisesThought` to correct earlier steps |
-| `prompttuner` | Fix typos, grammar, ambiguity                                      |
-| `todokit`     | Track multi-step task progress                                     |
+| Tool                       | Purpose                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `thinkseq`                 | Sequential thinking; use `revisesThought` to correct earlier steps |
+| `prompttuner/fix_prompt`   | Polish: typos, grammar, flow (preserves structure)                 |
+| `prompttuner/boost_prompt` | Enhance: structure, specificity, prompt engineering best practices |
+| `todokit`                  | Track multi-step task progress                                     |
+
+**PromptTuner Tool Selection**:
+
+- `fix_prompt`: Prompt is understandable but has typos, awkward wording, or needs polish
+- `boost_prompt`: Prompt is vague, lacks structure, or needs prompt engineering enhancement
 
 ### 4.2 Discovery
 

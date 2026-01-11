@@ -295,9 +295,11 @@ hot-swappability, isolation, and consistent schemas.
 | ----------------------- | ---------------------------------------------------------- |
 | `memdb/search_memories` | **Always first**: recall prior context, decisions, errors  |
 | `memdb/store_memory`    | Persist plans, decisions, outcomes, errors (tags required) |
+| `memdb/store_memories`  | Batch store up to 50 memories (partial success supported)  |
 | `memdb/get_memory`      | Retrieve specific memory by hash                           |
 | `memdb/update_memory`   | Edit content/tags (note: changes hash)                     |
 | `memdb/delete_memory`   | Remove memory by hash                                      |
+| `memdb/delete_memories` | Batch delete up to 50 hashes (partial success supported)   |
 | `memdb/memory_stats`    | Monitor memory database health and coverage                |
 
 #### 7.4.1 Tag Categories
@@ -320,6 +322,19 @@ Use these as primary tags to categorize memories:
 - **Tool**: `tool:<tool-name>` for errors (e.g., `tool:fs-context`)
 - **Priority**: `priority:high`, `priority:normal`, `priority:low`
 - **Status**: `status:done`, `status:blocked`, `status:in-progress`
+
+#### 7.4.3 Batch Operations
+
+Use batch tools for efficiency when working with multiple memories:
+
+| Scenario                        | Tool                  | Notes                                   |
+| ------------------------------- | --------------------- | --------------------------------------- |
+| Import multiple related facts   | `store_memories`      | Up to 50 items per call                 |
+| Store multi-step plan decisions | `store_memories`      | Group related decisions in one batch    |
+| Bulk cleanup / pruning          | `delete_memories`     | Delete multiple obsolete hashes at once |
+| Single item operations          | `store/delete_memory` | Use single tools for individual items   |
+
+**Partial Success**: Batch operations support partial success—if one item fails validation, others still process. Check the `succeeded`/`failed` counts in the response.
 
 ## 8. Safety and Fail-Safes
 
@@ -428,11 +443,11 @@ AFTER TASK COMPLETION:
 
 ### 13.2 Knowledge Maintenance
 
-| Action                  | Frequency          | Tool                  |
-| ----------------------- | ------------------ | --------------------- |
-| Check memory health     | Weekly / On-demand | `memdb/memory_stats`  |
-| Update stale content    | When encountered   | `memdb/update_memory` |
-| Prune obsolete memories | Monthly            | `memdb/delete_memory` |
+| Action                  | Frequency          | Tool                                              |
+| ----------------------- | ------------------ | ------------------------------------------------- |
+| Check memory health     | Weekly / On-demand | `memdb/memory_stats`                              |
+| Update stale content    | When encountered   | `memdb/update_memory`                             |
+| Prune obsolete memories | Monthly            | `memdb/delete_memory` or `delete_memories` (bulk) |
 
 ### 13.3 Learning Triggers
 

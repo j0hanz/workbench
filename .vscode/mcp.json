@@ -46,10 +46,6 @@
         "${input:context7-api-key}"
       ]
     },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory@latest"]
-    },
     "apify": {
       "type": "http",
       "url": "https://mcp.apify.com",

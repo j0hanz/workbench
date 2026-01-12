@@ -345,10 +345,10 @@ function Invoke-ToolWithTimeout {
     )
 
     $job = Start-Job -ScriptBlock {
-        param([string]$workingDir, [string]$exe, [string[]]$args)
+        param([string]$workingDir, [string]$exe, [string[]]$toolArgs)
 
         Set-Location $workingDir
-        & $exe @args 2>&1
+        & $exe @toolArgs 2>&1
     } -ArgumentList @($script:projectRoot, $Command, $Arguments)
 
     $completed = $job | Wait-Job -Timeout $TimeoutSeconds

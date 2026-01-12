@@ -19,7 +19,6 @@ tools:
     'edit/createFile',
     'edit/editFiles',
     'search',
-    'agent',
     'brave-search/brave_news_search',
     'brave-search/brave_summarizer',
     'brave-search/brave_web_search',
@@ -32,23 +31,24 @@ tools:
     'github/search_repositories',
     'markitdown/*',
     'memdb/*',
-    'prompttuner/*',
     'superfetch/*',
     'thinkseq/*',
     'todokit/*',
+    'agent',
+    'prompttuner/*',
   ]
 handoffs:
   - label: Plan
     agent: agent
-    prompt: '## Planning: 1) Recall: memdb/search_memories for prior plans 2) Clarify: prompttuner/fix_prompt for typos or boost_prompt for structure 3) Discover: fs-context for files/APIs (no guessing) 4) Draft: thinkseq with totalThoughts 5) Critique: revisesThought to fix flaws 6) Store: memdb/store_memory tags:[plan,task:<name>] 7) Report: confidence % + risks'
+    prompt: '## Planning: 1) Recall: memdb/search_memories for prior plans 2) Clarify: prompttuner/fix_prompt for typos or boost_prompt for structure 3) Discover: fs-context for files/APIs (no guessing) 4) Draft: thinkseq with totalThoughts 5) Critique: revisesThought to fix flaws 6) Store: memdb/store_memory tags:[plan,task:<name>] memory_type:plan importance:7 7) Report: confidence % + risks'
     send: false
   - label: Execute
     agent: agent
-    prompt: "## Execution: 1) Recall: memdb/search_memories for decisions/errors 2) Track: todokit/add_todo or todokit/add_todos for subtasks (required fields: description + priority + category; optional dueAt. Prefer defaults priority='medium', category='work' unless specified.) 3) Analyze: fs-context before any edit 4) Implement: atomic changes, one file at a time 5) Decide: store with tags:[decision,task:<name>] 6) On error: store with tags:[error,gradient,tool:<name>] 7) Gate: pause if confidence < 85%"
+    prompt: "## Execution: 1) Recall: memdb/search_memories for decisions/errors (use memdb/recall for graph context when relevant) 2) Track: todokit/add_todo or todokit/add_todos for subtasks (required fields: description + priority + category; optional dueAt. Prefer defaults priority='medium', category='work' unless specified.) 3) Analyze: fs-context before any edit 4) Implement: atomic changes, one file at a time 5) Decide: store with memdb/store_memory tags:[decision,task:<name>] memory_type:decision importance:6 6) On error: store with memdb/store_memory tags:[error,gradient,tool:<name>] memory_type:error or memory_type:gradient importance:8 7) Gate: pause if confidence < 85%"
     send: false
   - label: Verify
     agent: agent
-    prompt: '## Verification: 1) Recall: memdb/search_memories for known issues 2) Run: execute/runTask for tests/lint/type-check 3) Review: check for regressions 4) Store: memdb/store_memory tags:[outcome,task:<name>] 5) Report: confidence + issues + next steps'
+    prompt: '## Verification: 1) Recall: memdb/search_memories for known issues (or memdb/recall if relationships matter) 2) Run: execute/runTask for tests/lint/type-check 3) Review: check for regressions 4) Store: memdb/store_memory tags:[outcome,task:<name>] memory_type:reflection importance:5 5) Report: confidence + issues + next steps'
     send: false
 ---
 
@@ -150,16 +150,27 @@ Before acting, consider in order:
 
 ### 4.4 Memory (Mandatory)
 
-| Tool              | Purpose                                         |
-| ----------------- | ----------------------------------------------- |
-| `search_memories` | **Always first** — recall prior context         |
-| `store_memory`    | Persist plans, decisions, outcomes (tags req'd) |
-| `store_memories`  | Batch store (max 50, partial success)           |
-| `get_memory`      | Retrieve by hash                                |
-| `update_memory`   | Edit content/tags (changes hash)                |
-| `delete_memory`   | Remove by hash                                  |
-| `delete_memories` | Batch delete (max 50)                           |
-| `memory_stats`    | Monitor health and coverage                     |
+| Tool                  | Purpose                                                  |
+| --------------------- | -------------------------------------------------------- |
+| `search_memories`     | **Always first** — recall prior context                  |
+| `store_memory`        | Persist plans, decisions, outcomes (tags req'd)          |
+| `store_memories`      | Batch store (max 50, partial success)                    |
+| `get_memory`          | Retrieve by hash                                         |
+| `update_memory`       | Edit content/tags (changes hash)                         |
+| `delete_memory`       | Remove by hash                                           |
+| `delete_memories`     | Batch delete (max 50)                                    |
+| `recall`              | Search + traverse relationships for deeper context       |
+| `create_relationship` | Create a knowledge-graph edge between two memories       |
+| `get_relationships`   | Read relationships for a memory (incoming/outgoing/both) |
+| `delete_relationship` | Delete a relationship edge (destructive)                 |
+| `memory_stats`        | Monitor health and coverage                              |
+
+**memdb schema notes**:
+
+- `store_memory` / `store_memories` support optional `importance` (0-10) and `memory_type` (`general`, `fact`, `plan`, `decision`, `reflection`, `lesson`, `error`, `gradient`).
+- Tags must not contain whitespace (use hyphens).
+- Relationships are addressed by memory hash: `from_hash`, `to_hash`, with `relation_type` (no whitespace).
+- `recall` supports `depth` 0-3 (0 = search only; 1-3 = follow graph edges).
 
 **Tag Categories**:
 
@@ -187,7 +198,7 @@ RECALL  → memdb/search_memories('<task-keywords>')
 DRAFT   → thinkseq: outline files, APIs, dependencies
 CRITIQUE→ thinkseq with revisesThought to correct flaws
 REFINE  → Final plan with confidence score
-VERIFY  → Execute + test + store outcome
+VERIFY  → Execute + test + store outcome (memory_type:reflection + tag:outcome)
 ```
 
 ### 5.2 Self-Healing
@@ -214,8 +225,8 @@ Next: <immediate next action>
 Notes: <constraints and pitfalls>
 ```
 
-**Store**: `tags: [fold, task:<name>, status:<status>]`  
-**Recall**: `memdb/search_memories('<task> fold')`
+**Store**: `tags: [fold, task:<name>, status:<status>]` (recommended: `memory_type:plan`)  
+**Recall**: `memdb/search_memories('<task> fold')` (or `memdb/recall` if you linked folds via relationships)
 
 ---
 

@@ -44,7 +44,7 @@ handoffs:
     send: false
   - label: Execute
     agent: agent
-    prompt: '## Execution: 1) Recall: memdb/search_memories for decisions/errors 2) Track: todokit/add_todos for subtasks 3) Analyze: fs-context before any edit 4) Implement: atomic changes, one file at a time 5) Decide: store with tags:[decision,task:<name>] 6) On error: store with tags:[error,gradient,tool:<name>] 7) Gate: pause if confidence < 85%'
+    prompt: "## Execution: 1) Recall: memdb/search_memories for decisions/errors 2) Track: todokit/add_todo or todokit/add_todos for subtasks (required fields: description + priority + category; optional dueAt. Prefer defaults priority='medium', category='work' unless specified.) 3) Analyze: fs-context before any edit 4) Implement: atomic changes, one file at a time 5) Decide: store with tags:[decision,task:<name>] 6) On error: store with tags:[error,gradient,tool:<name>] 7) Gate: pause if confidence < 85%"
     send: false
   - label: Verify
     agent: agent
@@ -115,6 +115,16 @@ Before acting, consider in order:
 | `prompttuner/boost_prompt` | Enhance: structure, specificity, prompt engineering best practices |
 | `todokit`                  | Track multi-step task progress                                     |
 
+**Todokit MCP (current tool contract)**:
+
+- Tools: `add_todo`, `add_todos`, `list_todos`, `update_todo`, `complete_todo`, `delete_todo`
+- Schema: `priority` and `category` are required when creating todos
+  - `priority`: `low` | `medium` | `high`
+  - `category`: `work` | `bug` | `testing` | `docs`
+  - `dueAt` (optional): ISO 8601 datetime with offset (RFC3339-style)
+- Listing safety: `list_todos` defaults to `status='pending'` and truncates to 50 items; use `status='completed'`/`'all'` as needed
+- Responses: tools return `{ ok, result }` or `{ ok:false, error:{code,message} }` in both `structuredContent` and JSON string `content`
+
 **PromptTuner Tool Selection**:
 
 - `fix_prompt`: Prompt is understandable but has typos, awkward wording, or needs polish
@@ -149,7 +159,6 @@ Before acting, consider in order:
 | `update_memory`   | Edit content/tags (changes hash)                |
 | `delete_memory`   | Remove by hash                                  |
 | `delete_memories` | Batch delete (max 50)                           |
-| `list_tags`       | Discover existing tag categories                |
 | `memory_stats`    | Monitor health and coverage                     |
 
 **Tag Categories**:

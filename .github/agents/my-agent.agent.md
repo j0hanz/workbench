@@ -40,15 +40,15 @@ tools:
 handoffs:
   - label: Plan
     agent: agent
-    prompt: '## Planning: 1) Recall: memdb/search_memories for prior plans 2) Clarify: prompttuner/fix_prompt for typos or boost_prompt for structure 3) Discover: fs-context for files/APIs (no guessing) 4) Draft: thinkseq with totalThoughts 5) Critique: revisesThought to fix flaws 6) Store: memdb/store_memory tags:[plan,task:<name>] memory_type:plan importance:7 7) Report: confidence % + risks'
+    prompt: '## Planning (RSIP+): 1) Recall: memdb/search_memories for prior plans/decisions/errors/gradients 2) Clarify: prompttuner/fix_prompt (polish) or boost_prompt (structure) if needed 3) Discover: fs-context/* for files/APIs/scripts (no guessing) 4) Think: thinkseq draft→critique→refine (use revisesThought) 5) Plan: smallest safe steps + acceptance criteria + risks + rollback 6) Gate: pause and ask if confidence < 85% or intent is ambiguous 7) Persist: memdb/store_memory tags:[plan,task:<name>,status:in-progress] memory_type:plan importance:7 8) Report: confidence % + top risks'
     send: false
   - label: Execute
     agent: agent
-    prompt: "## Execution: 1) Recall: memdb/search_memories for decisions/errors (use memdb/recall for graph context when relevant) 2) Track: todokit/add_todo or todokit/add_todos for subtasks (required fields: description + priority + category; optional dueAt. Prefer defaults priority='medium', category='work' unless specified.) 3) Analyze: fs-context before any edit 4) Implement: atomic changes, one file at a time 5) Decide: store with memdb/store_memory tags:[decision,task:<name>] memory_type:decision importance:6 6) On error: store with memdb/store_memory tags:[error,gradient,tool:<name>] memory_type:error or memory_type:gradient importance:8 7) Gate: pause if confidence < 85%"
+    prompt: '## Execution (Safe + Atomic): 1) Recall: memdb/search_memories for known decisions/errors/gradients; use memdb/recall when relationship context helps 2) Track: todokit/add_todo(s) for multi-step work (priority+category required) 3) Discover: fs-context/* before any edit; confirm target files/symbols 4) Implement: smallest atomic edits (prefer one apply_patch per file); avoid unrelated refactors 5) Side-effects: for writes/destructive actions, prefer dry-run; otherwise ask explicit confirmation with intent summary + rollback 6) Bounded retries: max 2; if repeating, stop and switch strategy 7) Verify: run the tightest check next (execute/runTask preferred) 8) Persist: memdb/store_memory tags:[decision,task:<name>] memory_type:decision importance:6 9) On error: store gradient tags:[error,gradient,tool:<name>] importance:8; ask if confidence < 85%'
     send: false
   - label: Verify
     agent: agent
-    prompt: '## Verification: 1) Recall: memdb/search_memories for known issues (or memdb/recall if relationships matter) 2) Run: execute/runTask for tests/lint/type-check 3) Review: check for regressions 4) Store: memdb/store_memory tags:[outcome,task:<name>] memory_type:reflection importance:5 5) Report: confidence + issues + next steps'
+    prompt: '## Verification (Fast→Broad): 1) Recall: memdb/search_memories for known issues/gradients; use memdb/recall if needed 2) Run: execute/runTask (preferred) for unit tests/lint/type-check closest to the change; expand only if needed 3) Review: confirm acceptance criteria + check for regressions 4) Persist: memdb/store_memory tags:[outcome,task:<name>,status:done] memory_type:reflection importance:5 5) Report: what was verified, what was not, confidence %, and next steps'
     send: false
 ---
 

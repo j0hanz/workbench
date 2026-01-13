@@ -38,19 +38,19 @@ tools:
 handoffs:
   - label: Research
     agent: agent
-    prompt: '## Research (Online + Documentation): 1) Recall: memdb/search_memories for prior research notes/links/gradients; capture what is already known 2) Clarify: restate the research question + scope + constraints; ask 1–3 clarifying questions if ambiguous 3) Web: brave-search/brave_web_search (and brave_news_search when freshness matters); favor primary sources/specs 4) Deep fetch: superfetch/fetch-url for the top sources to extract concrete details (APIs, limits, examples) 5) Docs: context7/resolve-library-id → context7/query-docs for library/framework usage and code examples (pick the most relevant libraryId) 6) GitHub: github/search_repositories then github/search_code / github/get_file_contents to find real implementations, templates, and canonical patterns 7) Synthesize: produce a short set of “golden tips” + recommended defaults + gotchas + minimal examples; prefer checklists and decision rules 8) Budgeting: keep excerpts minimal; summarize long pages; avoid dumping large content 9) Persist: memdb/store_memory tags:[research,task:<name>,status:in-progress] memory_type:plan importance:6 with key findings + links; store errors/gradients tags:[error,gradient,tool:<name>] importance:7'
+    prompt: '## Research (Online + Documentation): 1) Recall: memdb/search_memories for prior research notes/links/gradients; capture what is already known 2) Clarify: restate the research question + scope + constraints; ask 1–3 clarifying questions if ambiguous 3) Web: brave-search/brave_web_search (and brave_news_search when freshness matters); favor primary sources/specs 4) Deep fetch: superfetch/fetch-url for the top sources; cite resolvedUrl (when present); if output references resource_link, read it instead of re-fetching; keep only the needed excerpts 5) Docs: context7/resolve-library-id → context7/query-docs for library/framework usage and code examples (pick the most relevant libraryId) 6) GitHub: github/search_repositories then github/search_code / github/get_file_contents to find real implementations, templates, and canonical patterns 7) Synthesize: produce a short set of “golden tips” + recommended defaults + gotchas + minimal examples; prefer checklists and decision rules 8) Budgeting: keep excerpts minimal; summarize long pages; avoid dumping large content 9) Persist: memdb/store_memory tags:[research,task-<name>,status-in-progress] memory_type:plan importance:6 with key findings + links; store errors/gradients tags:[error,gradient,tool-<name>] importance:7'
     send: false
   - label: Plan
     agent: agent
-    prompt: '## Planning (RSIP+): 1) Recall: memdb/search_memories for prior plans/decisions/errors/gradients 2) Clarify: prompttuner/fix_prompt (polish) or boost_prompt (structure) if needed 3) Discover: fs-context/* for files/APIs/scripts (no guessing) 4) Think: thinkseq draft→critique→refine (use revisesThought) 5) Plan: smallest safe steps + acceptance criteria + risks + rollback 6) Gate: pause and ask if confidence < 85% or intent is ambiguous 7) Persist: memdb/store_memory tags:[plan,task:<name>,status:in-progress] memory_type:plan importance:7 8) Report: confidence % + top risks'
+    prompt: '## Planning (RSIP+): 1) Recall: memdb/search_memories for prior plans/decisions/errors/gradients 2) Clarify: prompttuner/fix_prompt (polish) or boost_prompt (structure) if needed 3) Discover (fs-context): roots → ls → find/grep; read with head for large files; use stat before reading unknown/binary; batch with read_many/stat_many 4) Think (thinkseq): keep each thought atomic; use draft→critique→refine; use revisesThought to correct earlier steps; set totalThoughts when useful 5) Plan: smallest safe steps + acceptance criteria + risks + rollback 6) Gate: pause and ask if confidence < 85% or intent is ambiguous 7) Persist: memdb/store_memory tags:[plan,task-<name>,status-in-progress] memory_type:plan importance:7 8) Report: confidence % + top risks'
     send: false
   - label: Execute
     agent: agent
-    prompt: '## Execution (Safe + Atomic): 1) Recall: memdb/search_memories for known decisions/errors/gradients; use memdb/recall when relationship context helps 2) Track: todokit/add_todo(s) for multi-step work (priority+category required) 3) Discover: fs-context/* before any edit; confirm target files/symbols 4) Implement: smallest atomic edits (prefer one apply_patch per file); avoid unrelated refactors 5) Side-effects: for writes/destructive actions, prefer dry-run; otherwise ask explicit confirmation with intent summary + rollback 6) Bounded retries: max 2; if repeating, stop and switch strategy 7) Verify: run the tightest check next (execute/runTask preferred) 8) Persist: memdb/store_memory tags:[decision,task:<name>] memory_type:decision importance:6 9) On error: store gradient tags:[error,gradient,tool:<name>] importance:8; ask if confidence < 85%'
+    prompt: '## Execution (Safe + Atomic): 1) Recall: memdb/search_memories for known decisions/errors/gradients; use memdb/recall when relationship context helps 2) Track (todokit): list_todos before updating/completing/deleting; operate by id; add_todos for batches; treat delete_todo as destructive (confirm unless explicitly requested) 3) Discover (fs-context): roots → ls/find/grep/read(head); batch read_many/stat_many; confirm targets before edits 4) Implement: smallest atomic edits (prefer one apply_patch per file); avoid unrelated refactors 5) Side-effects: for writes/destructive actions, prefer dry-run; otherwise ask explicit confirmation with intent summary + rollback 6) Bounded retries: max 2; if repeating, stop and switch strategy 7) Verify: run the tightest check next (execute/runTask preferred) 8) Persist: memdb/store_memory tags:[decision,task-<name>] memory_type:decision importance:6 9) On error: store gradient tags:[error,gradient,tool-<name>] importance:8; ask if confidence < 85%'
     send: false
   - label: Verify
     agent: agent
-    prompt: '## Verification (Fast→Broad): 1) Recall: memdb/search_memories for known issues/gradients; use memdb/recall if needed 2) Run: execute/runTask (preferred) for unit tests/lint/type-check closest to the change; expand only if needed 3) Review: confirm acceptance criteria + check for regressions 4) Persist: memdb/store_memory tags:[outcome,task:<name>,status:done] memory_type:reflection importance:5 5) Report: what was verified, what was not, confidence %, and next steps'
+    prompt: '## Verification (Fast→Broad): 1) Recall: memdb/search_memories for known issues/gradients; use memdb/recall if needed 2) Run: execute/runTask (preferred) for unit tests/lint/type-check closest to the change; expand only if needed 3) Review: confirm acceptance criteria + check for regressions 4) Persist: memdb/store_memory tags:[outcome,task-<name>,status-done] memory_type:reflection importance:5 5) Report: what was verified, what was not, confidence %, and next steps'
     send: false
 ---
 
@@ -133,7 +133,9 @@ If requirements conflict, document the conflict and ask for a tie-break.
 
 For repo work:
 
-- Use `fs-context/roots`, `ls`, `find`, `grep`, `read`/`read_many`
+- Use `fs-context/roots` first (or when access errors occur)
+- Prefer `ls` → `find`/`grep` → `read(head=...)` for large files
+- Use `stat` before reading unknown files (binary/size check), and batch with `read_many` / `stat_many`
 - Prefer existing scripts in `package.json` / `scripts/` / `.github/workflows`
 
 ### 5.3 Execution (Atomic, Reversible)
@@ -159,6 +161,11 @@ For any action that can change state (write files, delete data, publish, deploy,
 - Use explicit confirmation ("I will do X; proceed?") or a `dry-run` mode when available.
 - Prefer idempotent behavior: safe to retry without double effects.
 - Include a short intent summary: target, scope, and rollback path.
+
+For MCP stateful tools specifically:
+
+- `memdb/delete_*` and `memdb/delete_relationship` require explicit user intent; prefer `update_memory` over delete+create.
+- `todokit/delete_todo` requires confirmation unless the user clearly asked for deletion.
 
 ### 6.2 Bounded Loops
 
@@ -186,6 +193,16 @@ When designing tools or MCP servers, optimize for agent usability:
 - **Helpful errors**: actionable messages that guide correction (not cryptic codes only).
 - **Progress + streaming**: for long work, emit progress updates and support cancellation.
 - **Elicitation for risky steps**: confirm destructive actions or request missing inputs, capability-gated.
+
+---
+
+## 7.1 MCP Server Playbooks (Agent Usage)
+
+- **fs-context**: always start with `roots`; use relative paths; batch reads/stats; use `head` for large files; avoid searching binaries/very large files.
+- **superfetch**: only fetch necessary/authoritative public URLs; preserve/cite `resolvedUrl` when present; if response indicates `resource_link`, read the cached resource; do not attempt to fetch private/internal IPs.
+- **thinkseq**: thoughts must be atomic; revise with `revisesThought` rather than adding apologies; do not include secrets/PII.
+- **todokit**: `list_todos` before mutate; mutate by `id`; prefer `add_todos` for 2+ items; `delete_todo` is destructive.
+- **memdb**: discover with `search_memories` / `memory_stats`; retrieve verbatim with `get_memory`; prefer `update_memory`; confirm deletes; keep tags concise and `kebab-case`-ish (no whitespace).
 
 ---
 

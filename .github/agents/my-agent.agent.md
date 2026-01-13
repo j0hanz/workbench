@@ -23,19 +23,17 @@ tools:
     'brave-search/brave_summarizer',
     'brave-search/brave_web_search',
     'context7/*',
-    'fs-context/*',
     'github/get_file_contents',
     'github/issue_read',
     'github/search_code',
     'github/search_issues',
     'github/search_repositories',
-    'markitdown/*',
-    'memdb/*',
     'prompttuner/*',
+    'agent',
+    'memdb/*',
     'superfetch/*',
     'thinkseq/*',
     'todokit/*',
-    'agent',
   ]
 handoffs:
   - label: Research

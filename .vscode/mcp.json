@@ -53,15 +53,6 @@
         "Authorization": "Bearer ${input:apify-api-key}"
       }
     },
-    "markitdown": {
-      "type": "stdio",
-      "command": "py",
-      "args": ["-m", "markitdown_mcp"]
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking@latest"]
-    },
     "brave-search": {
       "type": "stdio",
       "command": "npx",
@@ -74,15 +65,6 @@
       "env": {
         "BRAVE_API_KEY": "${input:brave-api-key}"
       }
-    },
-    "everything": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-everything"]
-    },
-    "microsoft.docs.mcp": {
-      "type": "http",
-      "url": "https://learn.microsoft.com/api/mcp"
     }
   },
   "inputs": [

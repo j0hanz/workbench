@@ -1,7 +1,5 @@
 ---
 description: "Generate an AI-facing instructions.md for an MCP server (tool-by-tool + workflows + gotchas)"
-tools:
-	['execute', 'read', 'edit', 'search', 'web/githubRepo', 'fs-context/*', 'thinkseq/*']
 ---
 
 # MCP Server Instructions.md Generator (Reusable)

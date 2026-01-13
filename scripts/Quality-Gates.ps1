@@ -107,7 +107,6 @@ param(
 
     # Measure
     [Parameter()]
-    [ValidatePattern('^[\w\-\.]+\.json$')]
     [string]$OutFile = 'metrics-baseline.json',
 
     [Parameter()]
@@ -125,15 +124,12 @@ param(
 
     # Compare
     [Parameter()]
-    [ValidatePattern('^[\w\-\.]+\.json$')]
     [string]$BaselineFile = 'metrics-baseline.json',
 
     [Parameter()]
-    [ValidatePattern('^[\w\-\.]+\.json$')]
     [string]$CurrentFile = 'metrics-current.json',
 
     [Parameter()]
-    [ValidatePattern('^[\w\-\.]+\.md$')]
     [string]$ReportFile,
 
     [Parameter()]
@@ -198,6 +194,40 @@ if ($Force) {
 $script:scriptsDir = $PSScriptRoot
 $script:projectRoot = Split-Path -Parent $PSScriptRoot
 $script:gitCommand = $null  # Cached git availability
+
+function Resolve-SafeScriptsFilePath {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$File,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$ExpectedExtension
+    )
+
+    $scriptsRoot = [System.IO.Path]::GetFullPath($script:scriptsDir)
+    $scriptsRootPrefix = if ($scriptsRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
+        $scriptsRoot
+    }
+    else {
+        $scriptsRoot + [System.IO.Path]::DirectorySeparatorChar
+    }
+
+    $candidatePath = if ([System.IO.Path]::IsPathRooted($File)) {
+        [System.IO.Path]::GetFullPath($File)
+    }
+    else {
+        Join-Path $script:scriptsDir $File
+    }
+
+    if (-not $candidatePath.StartsWith($scriptsRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "File path must be within scripts directory: $scriptsRoot"
+    }
+
+    if (-not $candidatePath.EndsWith($ExpectedExtension, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Expected a $ExpectedExtension file path, got: $candidatePath"
+    }
+
+    return $candidatePath
+}
 
 $script:ExitCodes = @{
     Success           = 0
@@ -697,7 +727,7 @@ function Invoke-Measure {
         [bool]$SkipDependenciesCollection = $false
     )
 
-    $outputPath = Join-Path $script:scriptsDir $OutFileName
+    $outputPath = Resolve-SafeScriptsFilePath -File $OutFileName -ExpectedExtension '.json'
     $jscpdDir = Join-Path $script:scriptsDir '.jscpd'
 
     if (-not (Test-Path (Join-Path $script:projectRoot 'package.json'))) {
@@ -969,8 +999,8 @@ function Invoke-Compare {
         [bool]$SkipCapture
     )
 
-    $baselinePath = Join-Path $script:scriptsDir $BaselineFileName
-    $currentPath = Join-Path $script:scriptsDir $CurrentFileName
+    $baselinePath = Resolve-SafeScriptsFilePath -File $BaselineFileName -ExpectedExtension '.json'
+    $currentPath = Resolve-SafeScriptsFilePath -File $CurrentFileName -ExpectedExtension '.json'
 
     if (-not (Test-Path $baselinePath -ErrorAction SilentlyContinue)) {
         Write-Error "Baseline file not found: $baselinePath`nRun .\Quality-Gates.ps1 -Mode Measure to create a baseline first."
@@ -1186,7 +1216,7 @@ function Invoke-Compare {
     Write-Host ''
 
     if ($ReportFileName) {
-        $reportPath = Join-Path $script:scriptsDir $ReportFileName
+        $reportPath = Resolve-SafeScriptsFilePath -File $ReportFileName -ExpectedExtension '.md'
         New-MarkdownReport -Comparison $comparison -OutputPath $reportPath
         Write-Host "Report saved to: $reportPath" -ForegroundColor Cyan
     }

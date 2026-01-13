@@ -303,64 +303,14 @@ function Get-ToolVersion {
         switch ($Tool) {
             'node' { return (node --version 2>$null) -replace '^v', '' }
             'npm' { return (npm --version 2>$null) }
-            'eslint' {
-                $eslintCmd = Get-LocalToolCommand -ToolName 'eslint'
-                if ($null -eq $eslintCmd) { return $null }
-                return (& $eslintCmd --version 2>$null) -replace '^v', ''
-            }
-            'jscpd' {
-                $jscpdCmd = Get-LocalToolCommand -ToolName 'jscpd'
-                if ($null -eq $jscpdCmd) { return $null }
-                return (& $jscpdCmd --version 2>$null) -replace '^v', ''
-            }
+            'eslint' { return (npx eslint --version 2>$null) -replace '^v', '' }
+            'jscpd' { return (npx jscpd --version 2>$null) -replace '^v', '' }
             default { return $null }
         }
     }
     catch {
         return $null
     }
-}
-
-function Get-LocalToolCommand {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param([Parameter(Mandatory)][string]$ToolName)
-
-    $binDir = Join-Path $script:projectRoot (Join-Path 'node_modules' '.bin')
-    $windowsExe = Join-Path $binDir "$ToolName.cmd"
-    if (Test-Path $windowsExe -ErrorAction SilentlyContinue) { return $windowsExe }
-
-    $posixExe = Join-Path $binDir $ToolName
-    if (Test-Path $posixExe -ErrorAction SilentlyContinue) { return $posixExe }
-
-    return $null
-}
-
-function Invoke-ToolWithTimeout {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Command,
-        [Parameter()][string[]]$Arguments = @(),
-        [Parameter()][int]$TimeoutSeconds = 300
-    )
-
-    $job = Start-Job -ScriptBlock {
-        param([string]$workingDir, [string]$exe, [string[]]$toolArgs)
-
-        Set-Location $workingDir
-        & $exe @toolArgs 2>&1
-    } -ArgumentList @($script:projectRoot, $Command, $Arguments)
-
-    $completed = $job | Wait-Job -Timeout $TimeoutSeconds
-    if ($null -eq $completed) {
-        $job | Stop-Job -ErrorAction SilentlyContinue
-        $job | Remove-Job -Force -ErrorAction SilentlyContinue
-        throw "Command timed out after $TimeoutSeconds seconds: $Command"
-    }
-
-    $output = $job | Receive-Job | Out-String
-    $job | Remove-Job -Force -ErrorAction SilentlyContinue
-    return $output
 }
 
 function Read-JsonFile {
@@ -431,13 +381,10 @@ function Get-EslintMetrics {
     }
 
     try {
-        $eslintCmd = Get-LocalToolCommand -ToolName 'eslint'
-        if ($null -eq $eslintCmd) {
-            throw 'ESLint is not installed (expected in devDependencies). Run npm ci.'
-        }
+        $null = Get-Command npx -ErrorAction Stop
 
         $eslintArgs = @($Paths) + @('--format', 'json')
-        $output = Invoke-ToolWithTimeout -Command $eslintCmd -Arguments $eslintArgs -TimeoutSeconds 300
+        $output = & npx eslint @eslintArgs 2>&1
 
         $jsonOutput = $output | Where-Object { $_ -notmatch '^npm|^npx' } | Out-String
         $jsonText = if ($jsonOutput) { $jsonOutput.Trim() } else { '' }
@@ -483,22 +430,10 @@ function Get-DuplicationMetrics {
         clones     = 0
         sources    = 0
         lines      = 0
-        skipped    = $false
-        reason     = $null
     }
 
     try {
-        $jscpdCmd = Get-LocalToolCommand -ToolName 'jscpd'
-        if ($null -eq $jscpdCmd) {
-            return @{
-                percentage = $null
-                clones     = $null
-                sources    = $null
-                lines      = $null
-                skipped    = $true
-                reason     = 'jscpd is not installed; skipping duplication metrics.'
-            }
-        }
+        $null = Get-Command npx -ErrorAction Stop
 
         if (-not (Test-Path $OutputDir)) {
             $null = New-Item -Path $OutputDir -ItemType Directory -Force -ErrorAction Stop
@@ -511,7 +446,7 @@ function Get-DuplicationMetrics {
             '--gitignore'
         ) + $Paths
 
-        $null = Invoke-ToolWithTimeout -Command $jscpdCmd -Arguments $jscpdArgs -TimeoutSeconds 300
+        $null = & npx jscpd @jscpdArgs 2>&1
 
         $reportPath = Join-Path $OutputDir 'jscpd-report.json'
         if (Test-Path $reportPath -ErrorAction SilentlyContinue) {
@@ -661,14 +596,14 @@ function Get-TechDebtMetrics {
 
             foreach ($ext in $extensions) {
                 $files = Get-ChildItem -Path $fullPath -Filter $ext -Recurse -File -ErrorAction SilentlyContinue |
-                    Where-Object {
-                        $filePath = $_.FullName
-                        $excluded = $false
-                        foreach ($dir in $excludeDirs) {
-                            if ($filePath -match [regex]::Escape($dir)) { $excluded = $true; break }
-                        }
-                        -not $excluded
+                Where-Object {
+                    $filePath = $_.FullName
+                    $excluded = $false
+                    foreach ($dir in $excludeDirs) {
+                        if ($filePath -match [regex]::Escape($dir)) { $excluded = $true; break }
                     }
+                    -not $excluded
+                }
 
                 foreach ($file in $files) {
                     $searchResults = Select-String -Path $file.FullName -Pattern '\bTODO\b|\bFIXME\b|\bHACK\b|\bXXX\b' -AllMatches -ErrorAction SilentlyContinue
@@ -873,15 +808,7 @@ function Invoke-Measure {
         Write-Host 'Summary:' -ForegroundColor Cyan
         Write-Host "   ESLint Errors:   $($metrics.metrics.eslint.errors)" -ForegroundColor $(if ($metrics.metrics.eslint.errors -eq 0) { 'Green' } else { 'Yellow' })
         Write-Host "   ESLint Warnings: $($metrics.metrics.eslint.warnings)" -ForegroundColor $(if ($metrics.metrics.eslint.warnings -eq 0) { 'Green' } else { 'Yellow' })
-        if ($null -ne $metrics.metrics.duplication -and $metrics.metrics.duplication.skipped) {
-            Write-Host '   Duplication:     skipped' -ForegroundColor DarkGray
-        }
-        elseif ($null -ne $metrics.metrics.duplication -and $null -ne $metrics.metrics.duplication.percentage) {
-            Write-Host "   Duplication:     $($metrics.metrics.duplication.percentage)%" -ForegroundColor $(if ($metrics.metrics.duplication.percentage -lt 5) { 'Green' } else { 'Yellow' })
-        }
-        else {
-            Write-Host '   Duplication:     n/a' -ForegroundColor DarkGray
-        }
+        Write-Host "   Duplication:     $($metrics.metrics.duplication.percentage)%" -ForegroundColor $(if ($metrics.metrics.duplication.percentage -lt 5) { 'Green' } else { 'Yellow' })
         if (-not $SkipCoverageCollection -and $metrics.metrics.coverage.lines) {
             Write-Host "   Coverage:        $($metrics.metrics.coverage.lines)%" -ForegroundColor $(if ($metrics.metrics.coverage.lines -ge 80) { 'Green' } elseif ($metrics.metrics.coverage.lines -ge 60) { 'Yellow' } else { 'Red' })
         }
@@ -1159,19 +1086,28 @@ function Invoke-Compare {
             Unit           = ''
             Recommendation = $null
             FailOnWarn     = $false
-        },
-        @{
+        }
+    )
+
+    # Dependency health requires special handling: don't compare when missing or skipped.
+    $baselineDepSkipped = ($null -ne $baseline.metrics.dependencies) -and ($baseline.metrics.dependencies.PSObject.Properties['skipped']) -and ($baseline.metrics.dependencies.skipped -eq $true)
+    $currentDepSkipped = ($null -ne $current.metrics.dependencies) -and ($current.metrics.dependencies.PSObject.Properties['skipped']) -and ($current.metrics.dependencies.skipped -eq $true)
+
+    $canCompareDependencies = $null -ne $baseline.metrics.dependencies -and $null -ne $current.metrics.dependencies -and -not $baselineDepSkipped -and -not $currentDepSkipped -and $null -ne $baseline.metrics.dependencies.outdatedCount -and $null -ne $current.metrics.dependencies.outdatedCount
+
+    if ($canCompareDependencies) {
+        $metricDefinitions += @{
             Key            = 'dependencies.outdatedCount'
             Label          = 'Outdated Packages'
-            BeforeValue    = if ($null -ne $baseline.metrics.dependencies -and $null -ne $baseline.metrics.dependencies.outdatedCount) { [int]$baseline.metrics.dependencies.outdatedCount } else { 0 }
-            AfterValue     = if ($null -ne $current.metrics.dependencies -and $null -ne $current.metrics.dependencies.outdatedCount) { [int]$current.metrics.dependencies.outdatedCount } else { 0 }
+            BeforeValue    = [int]$baseline.metrics.dependencies.outdatedCount
+            AfterValue     = [int]$current.metrics.dependencies.outdatedCount
             Threshold      = 0
             Direction      = 'LowerIsBetter'
             Unit           = ''
             Recommendation = 'Run npm update to refresh dependencies'
             FailOnWarn     = $false
         }
-    )
+    }
 
     # Process each metric using the helper
     foreach ($def in $metricDefinitions) {

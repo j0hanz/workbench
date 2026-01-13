@@ -1,5 +1,5 @@
 ---
-description: "Generate an AI-facing instructions.md for an MCP server (tool-by-tool + workflows + gotchas)"
+description: 'Generate an AI-facing instructions.md for an MCP server (tool-by-tool + workflows + gotchas)'
 ---
 
 # MCP Server Instructions.md Generator (Reusable)
@@ -75,80 +75,71 @@ Write the file using this template and fill it with repo-specific content.
 
 ### Template (Must keep these section headers)
 
-```markdown
+````markdown
 # {Server Display Name} MCP Server — AI Usage Instructions
 
-Use this server to {1 sentence describing capability}. Prefer using these tools over “remembering” state in chat.
+Use this server to {capability}. Prefer these tools over "remembering" state in chat.
 
 ## Operating Rules
 
-- Use tools only when it changes or verifies {the system state}.
-- Prefer {the safest “state discovery” tool} to establish state before updating/deleting.
-- Operate by stable identifiers (for example: `id`, `name`, `path`, `uri`) rather than ambiguous user text.
-- Batch operations when available (for example: `add_*s`, `bulk_*`, `batch_*`).
-- Treat destructive tools as destructive: require explicit user confirmation unless the user clearly requested it.
-- Keep operations atomic; if a request is vague, ask a clarifying question before calling tools.
+- {Rule 1}
+- {Rule 2}
+- If request is vague, ask clarifying questions.
 
-### Quick Decision Rules
+### Strategies
 
-- If you are unsure what exists: call {list/discover tool} before any mutation.
-- If the user provides multiple items: use {batch tool}.
-- If the user asks to delete without a specific target: list and ask which {identifier}.
-- Prefer {non-destructive action} over {destructive action} when appropriate.
+- **Discovery:** {Strategy for discovery}
+- **Action:** {Strategy for action}
 
-### Client UX Notes (VS Code)
+## Data Model
 
-- Non-read-only tools typically require user confirmation.
-- Tool lists can be cached; users can reset cached tools via **MCP: Reset Cached Tools**.
-- Models have a limit on enabled tools per request (VS Code mentions a 128-tool limit). Encourage selecting only needed tools.
-- Only run MCP servers from trusted sources; VS Code prompts users to trust servers.
+- **{Entity}:** {Fields}
 
-## Data Model (What the Server Operates On)
+## Workflows
 
-Describe the main entity/entities and fields in bullets, including:
+### 1) {Name}
 
-- IDs/primary keys
-- required vs optional fields
-- enum values
-- time formats (ISO 8601/RFC 3339 with offsets if relevant)
+```text
+{tool} → {purpose}
+{tool} → {purpose}
+```
+````
 
-## Workflows (Recommended)
+## Tools
 
-### 1) {Workflow name}
+### {tool}
 
-1. {Step}
-2. {Step}
-3. {Step}
+{Description}
 
-### 2) {Workflow name}
-
-...
-
-## Tools (What to Use, When)
-
-### {tool_name}
-
-{1–2 line description of what it does.}
-
-- Use when: {conditions}
-- Args: {list arguments and key constraints}
-- Notes: {gotchas, truncation, idempotency}
-
-... repeat for each tool
+- **Use when:** {condition}
+- **Args:** {args}
+- **Returns:** {properties}
 
 ## Response Shape
 
-Describe the response envelope your tools return.
+Success: `{ "ok": true, ...data }`
+Error: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 
-- If returning structured output: prefer including both `structuredContent` and a JSON-stringified `content` text block for compatibility.
-- Include success/error examples at the envelope level (not huge payloads).
+### Common Errors
+
+| Code | Meaning | Resolution |
+| ---- | ------- | ---------- |
+| ...  | ...     | ...        |
+
+## Limits
+
+- **{Limit Name}:** {Value}
+
+## Security
+
+- {Note}
+
 ```
 
 ### Content rules
-
-- Keep examples minimal (one canonical workflow example max).
+- Keep examples minimal (one workflow example max).
 - Do not invent tools or parameters.
-- Prefer “what to do next” language.
+- Prefer "what to do next" language.
 
 ## Step 2 — Integration Checklist (Optional, ask before code edits)
 
@@ -188,8 +179,8 @@ If it does NOT, propose these minimal changes and ask for confirmation:
 If the server is not Node/TypeScript:
 
 - Keep the `instructions.md` structure the same, but adjust integration steps to the language:
-	- Python: load file relative to module path and pass as server instructions.
-	- Go/Rust: embed file at build time or ship alongside binary; load and pass as instructions.
+  - Python: load file relative to module path and pass as server instructions.
+  - Go/Rust: embed file at build time or ship alongside binary; load and pass as instructions.
 
 ## Completion Criteria
 
@@ -198,5 +189,7 @@ You are done when:
 - The instructions file exists and accurately describes the tool surface.
 - (If applicable) the server exposes it at runtime.
 - Basic formatting checks pass.
+
+```
 
 ```

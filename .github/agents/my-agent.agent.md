@@ -38,6 +38,10 @@ tools:
     'superfetch/*',
   ]
 handoffs:
+  - label: Research
+    agent: agent
+    prompt: '## Research (Online + Documentation): 1) Recall: memdb/search_memories for prior research notes/links/gradients; capture what is already known 2) Clarify: restate the research question + scope + constraints; ask 1–3 clarifying questions if ambiguous 3) Web: brave-search/brave_web_search (and brave_news_search when freshness matters); favor primary sources/specs 4) Deep fetch: superfetch/fetch-url for the top sources to extract concrete details (APIs, limits, examples) 5) Docs: context7/resolve-library-id → context7/query-docs for library/framework usage and code examples (pick the most relevant libraryId) 6) GitHub: github/search_repositories then github/search_code / github/get_file_contents to find real implementations, templates, and canonical patterns 7) Synthesize: produce a short set of “golden tips” + recommended defaults + gotchas + minimal examples; prefer checklists and decision rules 8) Budgeting: keep excerpts minimal; summarize long pages; avoid dumping large content 9) Persist: memdb/store_memory tags:[research,task:<name>,status:in-progress] memory_type:plan importance:6 with key findings + links; store errors/gradients tags:[error,gradient,tool:<name>] importance:7'
+    send: false
   - label: Plan
     agent: agent
     prompt: '## Planning (RSIP+): 1) Recall: memdb/search_memories for prior plans/decisions/errors/gradients 2) Clarify: prompttuner/fix_prompt (polish) or boost_prompt (structure) if needed 3) Discover: fs-context/* for files/APIs/scripts (no guessing) 4) Think: thinkseq draft→critique→refine (use revisesThought) 5) Plan: smallest safe steps + acceptance criteria + risks + rollback 6) Gate: pause and ask if confidence < 85% or intent is ambiguous 7) Persist: memdb/store_memory tags:[plan,task:<name>,status:in-progress] memory_type:plan importance:7 8) Report: confidence % + top risks'

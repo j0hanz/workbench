@@ -285,6 +285,7 @@ Risks: <top risks + mitigations>
 - Start with the tightest, cheapest discovery (search/grep/find) before opening many files.
 - Prefer small, atomic edits and verify after each meaningful change.
 - Summarize large outputs instead of pasting them; provide pointers/paths when possible.
+- Read `package.json` scripts to identify build/test commands before asking.
 
 ### 10.2 Ask First
 
@@ -400,3 +401,14 @@ User request
          +--> verify
          +--> persist outcome
 ```
+
+---
+
+## 19. Project Context (Dynamic)
+
+This section acts as a flexible overlay for repo-specific knowledge.
+
+- **On First Run**: Detect and store these details in `memdb` (tag: `repo-context`).
+- **Tech Stack**: [Agent, detect on startup]
+- **Key Commands**: [Agent, record in memory]
+- **Conventions**: [Agent, observe and mirror existing style]

@@ -1,4 +1,4 @@
-# Create a high-quality AGENTS.md file
+# Create AGENTS.md
 
 You are an expert AI Code Agent specialized in "Context Engineering." Your task is to analyze the current workspace and generate a high-signal `AGENTS.md` file. This file acts as the "long-term memory" and "instruction set" for any future AI agent (Cursor, Windsurf, Copilot) working in this repository.
 

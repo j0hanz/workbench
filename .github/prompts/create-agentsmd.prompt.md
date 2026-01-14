@@ -1,152 +1,98 @@
----
-description: "Prompt for generating an AGENTS.md file for a repository"
----
-
 # Create a high-quality AGENTS.md file
 
-You are a code agent. Your task is to create a complete, accurate
-`AGENTS.md` at the repository root that follows https://agents.md/ and
-reflects THIS repository's reality.
+You are an expert AI Code Agent specialized in "Context Engineering." Your task is to analyze the current workspace and generate a high-signal `AGENTS.md` file. This file acts as the "long-term memory" and "instruction set" for any future AI agent (Cursor, Windsurf, Copilot) working in this repository.
 
-## Prime directive
+## Prime Directive
 
-- Be specific and verifiable. Only include commands, paths, and rules
-  you can confirm from repository files (package.json, README, docs, CI).
-- Prefer facts over filler. Omit generic background and marketing copy.
-- If information is missing or ambiguous, add a short "Open Questions /
-  TODO" section instead of guessing.
-- Keep it concise and actionable (1-2 pages). Use bullets and backticks
-  for commands/paths.
+1.  **Truth over Completeness:** Only include commands, paths, and patterns you can strictly verify. If unsure, exclude it or mark ``.
+2.  **Universal Adaptability:** Do not assume a specific language (like JS/Node). Dynamically detect the stack (Python, Rust, Go, Java, Node, etc.) based on file indicators.
+3.  **Token Economy:** The output must be concise. Do not list every file. Focus on _architectural boundaries_ and _high-leverage_ contexts.
 
-## Do not
+## Inputs to Inspect
 
-- Do not guess commands, paths, versions, services, or workflows. If you
-  cannot verify it from repo files, put it in "Open Questions / TODO".
-- Do not invent tooling or scripts (e.g., `npm run lint`) unless you can
-  confirm they exist (package.json scripts, task runner docs, CI).
-- Do not assume a package manager (npm/yarn/pnpm/bun). Use only what the
-  repo declares (lockfiles, README, engines, CI).
-- Do not claim a file/directory exists unless you can confirm it in the
-  repository tree.
-- Do not include secrets, tokens, private URLs, or any environment values
-  not already present in the repository.
-- Do not paste boilerplate from other repositories or the agents.md site;
-  write original, repo-specific instructions.
-- Do not output anything except a single Markdown code block containing
-  the full `AGENTS.md` content.
+1.  **Manifest Files:** `package.json`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, or `Gemfile` (for dependencies/scripts).
+2.  **Config Files:** `tsconfig.json`, `.eslintrc`, `pyproject.toml`, `.editorconfig` (for strictness/rules).
+3.  **Source Code Sampling:** Read 2-3 major source files (e.g., in `src/`, `app/`, or `lib/`) to infer coding style (naming conventions, functional vs OOP, comment style).
+4.  **CI/CD Configs:** `.github/workflows`, `.gitlab-ci.yml`, or `CircleCI` (to determine the _true_ build/test commands).
 
-## Inputs to inspect (minimum set)
+## Systematic Workflow
 
-1. package.json (scripts, engines, package manager)
-2. README.md and docs/ (setup, architecture, workflows)
-3. tsconfig/eslint/prettier configs (style + type/lint rules)
-4. CI/workflows (required checks, test matrix)
-5. Repository tree (top-level structure)
+**Phase 1: Diagnosis & Stack Detection**
 
-## Systematic workflow
+- Identify the Primary Language & Framework.
+- Identify the Build Tool/Package Manager.
+- Detect the folder structure pattern (e.g., "Feature-based," "Layer-based," "Monorepo").
 
-Phase 1 — Scan
+**Phase 2: Pattern Extraction**
 
-- Identify the stack, entry points, and main modules.
-- Extract exact commands (install, dev, build, test, lint, type-check).
-- Note generated vs. source directories.
+- **Commands:** Extract how to strictly _Install_, _Run Dev_, _Test_, and _Build_.
+- **Style Inference:** Observe the code. (e.g., "Prefers early returns," "Uses types over interfaces," "Snake_case vs CamelCase").
+- **Testing Strategy:** Look at a test file. (e.g., "Uses mocks," "Integration over Unit," "Table-driven tests").
 
-Phase 2 — Map
+**Phase 3: Synthesis**
 
-- Build a concise repo map (key directories and what they contain).
-- Identify sources of truth (schemas, configs, shared types).
+- Draft the `AGENTS.md` using the template below.
+- Add specific "Do Not" rules based on the stack (e.g., if Next.js, "Do not use `<img>` tag, use `<Image />`").
 
-Phase 3 — Synthesize
+## Output Format
 
-- Draft AGENTS.md with required sections below.
-- Translate implicit rules into explicit, agent-friendly instructions.
+Return **only** the Markdown code block for `AGENTS.md`.
 
-Phase 4 — QA
+---
 
-- Ensure every command exists and matches actual scripts.
-- Ensure paths are correct and section content is non-duplicative.
-- Remove any guesswork or unverified claims.
-
-## Required sections (use these headings)
-
-- Project Overview
-- Repo Map / Structure
-- Setup & Environment
-- Development Workflow
-- Testing
-- Code Style & Conventions
-- Build / Release
-- Security & Safety
-- Pull Request / Commit Guidelines
-- Troubleshooting
-
-## Optional sections (include only if relevant)
-
-- Monorepo / multi-package navigation
-- Database / migrations
-- Tooling details (lint/format/type-check)
-- Observability / logging
-- Agent Operating Rules (search before edit, avoid destructive commands,
-  read docs before changing behavior) — include only if repo policies
-  imply it
-
-## Output format
-
-Return a single Markdown code block containing the full AGENTS.md
-content. Do not include extra commentary outside the code block.
-
-## Template skeleton (fill with repo facts)
+## Template Skeleton
 
 ```markdown
 # AGENTS.md
 
-## Project Overview
+> **Purpose:** Context and strict guidelines for AI agents working in this repository.
 
-- [What this repo does + primary tech stack]
+## 1. Project Context
 
-## Repo Map / Structure
+- **Domain:** [One sentence summary]
+- **Tech Stack:**
+  - **Language:** [Exact Version, e.g., Python 3.11]
+  - **Framework:** [e.g., Django 4.2 / Next.js 14]
+  - **Key Libraries:** [List top 3 critical deps, e.g., Pydantic, Tailwind, Hibernate]
+- **Architecture:** [e.g., Clean Arch, MVC, Microservices]
 
-- `src/`: [purpose]
-- `dist/`: [build output if present]
-- [other key directories]
+## 2. Repository Map (High-Level Only)
 
-## Setup & Environment
+- `[Critical Folder]`: [Description of intent]
+- `[Critical Folder]`: [Description of intent]
+  > _Note: Ignore `dist`, `node_modules`, `.venv`, and `__pycache__`._
 
-- Install deps: `[command]`
-- Env config: [file(s) + where documented]
-- [any required services or versions]
+## 3. Operational Commands
 
-## Development Workflow
+- **Environment:** [Instructions to activate env if needed]
+- **Install:** \`[Verified Command]\`
+- **Dev Server:** \`[Verified Command]\`
+- **Test:** \`[Verified Command]\` (Prefer running only relevant tests)
+- **Build:** \`[Verified Command]\`
 
-- Dev mode: `[command]`
-- Build: `[command]`
-- Start/prod: `[command]`
+## 4. Coding Standards (Style & Patterns)
 
-## Testing
+- **Naming:** [Inferred convention, e.g., camelCase for vars, PascalCase for classes]
+- **Structure:** [e.g., "Place business logic in services, not controllers"]
+- **Typing:** [e.g., "Strict TypeScript", "Python Type Hints Required"]
+- **Preferred Patterns:**
+  - [Pattern 1 detected from code]
+  - [Pattern 2 detected from code]
 
-- All tests: `[command]`
-- Watch mode: `[command]`
-- Coverage: `[command]`
-- Test locations/patterns: `[details]`
+## 5. Agent Behavioral Rules (The "Do Nots")
 
-## Code Style & Conventions
+- **Prohibited:** [Stack-specific prohibition, e.g., "Do not use `any`"]
+- **Prohibited:** "Do not edit lockfiles manually."
+- **Handling Secrets:** "Never output `.env` values or hardcode secrets."
+- **File Creation:** "Always verify folder existence before creating files."
 
-- Language: [version]
-- Lint: `[command]`
-- Format: `[command]`
-- Conventions: [naming, imports, file layout]
+## 6. Testing Strategy
 
-## Build / Release
+- **Framework:** [e.g., Jest / Pytest]
+- **Approach:** [e.g., "Mock external APIs", "Write tests alongside code"]
 
-- Build output: `[directory]`
-- Release/versioning: [process or tags]
+## 7. Evolution & Maintenance
 
-## Security & Safety
-
-- [Constraints, safe defaults, secrets handling]
-
-## Pull Request / Commit Guidelines
-
-- Commit format: [convention]
-- Required checks: `[commands]`
+- **Update Rule:** If a convention changes or a new pattern is established, the agent MUST suggest an update to this file in the PR.
+- **Feedback Loop:** If a build command fails twice, the correct fix MUST be recorded in the "Common Pitfalls" section.
 ```

@@ -1,2 +1,4 @@
 .memdb
 mcp/
+ts/
+node-lib/

@@ -93,12 +93,12 @@ Tip: SDK guidance prefers Streamable HTTP for remote servers, stdio for local se
 
 Fill in:
 
-| Aspect           | Options                                                                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Transport**    | `stdio` / `streamable-http` / `sse` (legacy) / `hybrid`                                                                        |
-| **SDK Surface**  | `high` (`McpServer.registerTool/registerResource/registerPrompt`) / `low` (`Server.setRequestHandler`) / `framework`           |
-| **Capabilities** | `tools` / `resources` / `prompts` / `logging` / `sampling` / `elicitation` / `completion` / `roots` / `tasks` _(experimental)_ |
-| **Risk Profile** | `R0` read-only / `R1` bounded local I/O / `R2` mutations/network / `R3` exec/credentials/PII                                   |
+| Aspect           | Options                                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Transport**    | `stdio` / `streamable-http` / `sse` (legacy) / `hybrid`                                                                         |
+| **SDK Surface**  | `high` (`McpServer.registerTool/registerResource/registerPrompt`) / `low` (`Server.setRequestHandler`) / `framework`            |
+| **Capabilities** | `tools` / `resources` / `prompts` / `logging` / `sampling` / `elicitation` / `completions` / `roots` / `tasks` _(experimental)_ |
+| **Risk Profile** | `R0` read-only / `R1` bounded local I/O / `R2` mutations/network / `R3` exec/credentials/PII                                    |
 
 Also record:
 
@@ -433,6 +433,12 @@ try {
 - Rate limit completion requests server-side.
 - Validate all query inputs.
 
+**Error handling** (standard JSON-RPC errors):
+
+- Capability not supported / method not found: `-32601`
+- Invalid prompt/resource reference or missing/invalid arguments: `-32602`
+- Internal errors: `-32603`
+
 ---
 
 ### 3.6 Sampling & Elicitation (Only If Supported)
@@ -667,7 +673,7 @@ Prefer black-box verification with MCP Inspector.
 | Invalid session ID          | Send request with invalid `MCP-Session-Id`                                   | HTTP 404 Not Found                                                                                   |
 | Session correctness         | Initialize then call tool using returned session header                      | Works across subsequent requests                                                                     |
 | ListChanged notifications   | Change tools/resources/prompts list                                          | `notifications/*/list_changed` emitted                                                               |
-| Completion                  | Call `completion/complete` for prompt/resource args                          | Results returned (<= 100)                                                                            |
+| Completion                  | Call `completion/complete` for prompt/resource args                          | `result.completion.values` (<= 100), `hasMore` boolean, optional numeric `total`                     |
 | Cancellation                | Cancel a long-running request                                                | Work stops; no success result                                                                        |
 | Progress monotonicity       | Observe progress notifications                                               | Values increase (except phase resets)                                                                |
 | Tasks lifecycle             | Create task, poll `tasks/get`, retrieve via `tasks/result`, cancel           | Valid status transitions; related-task `_meta` on task messages; cancel terminal rejects with -32602 |

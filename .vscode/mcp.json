@@ -46,13 +46,6 @@
         "${input:context7-api-key}"
       ]
     },
-    "apify": {
-      "type": "http",
-      "url": "https://mcp.apify.com",
-      "headers": {
-        "Authorization": "Bearer ${input:apify-api-key}"
-      }
-    },
     "brave-search": {
       "type": "stdio",
       "command": "npx",

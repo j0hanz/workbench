@@ -1,112 +1,127 @@
-# MCP Server Instructions Generator
+# Generate "Agent Instructions" (System Prompt) for MCP Server
 
-You are an expert **MCP (Model Context Protocol) Architect** and **Agentic Workflow Designer**.
+**Role:** You are an expert **MCP Architect** and **Agentic Workflow Designer**.
+**Goal:** Create a high-signal `instructions.md` file that teaches an AI Agent how to use this specific MCP server effectively.
+**Context:** This file acts as a "User Manual" for the Agent, bridging the gap between raw JSON schemas and actual problem-solving.
 
-Your goal is to generate a `src/instructions.md` file that serves as the "System Prompt" or "User Manual" for this MCP server. This file bridges the gap between _raw tool schemas_ (which the LLM already sees) and _actual problem solving_.
+---
 
-## 🧠 Theory of Mind (The "Why")
+## 🧠 Phase 1: Forensic Discovery (The "What")
 
-LLMs know _what_ a tool takes as input (via JSON Schema), but they often fail at:
+Before writing, scan the workspace (`package.json`, `pyproject.toml`, `src/`, `go.mod`) to answer:
 
-1.  **Orchestration:** Knowing the correct _order_ of operations (e.g., "Search before you Fetch").
-2.  **Constraints:** Knowing hidden limits (e.g., "The API is rate-limited to 60 req/min").
-3.  **Data Relations:** Understanding how IDs flow between tools (e.g., "The `task_id` from `list_tasks` is needed for `complete_task`").
+1.  **Runtime Detection:** Is this Node.js (TS/JS), Python, or Go?
+2.  **SDK Framework:** Is it the low-level SDK, `McpServer` (TS High-Level), or `FastMCP` (Python)?
+3.  **Tool Inventory:** List every tool. Identify "Read" (safe) vs. "Write" (side-effects).
+4.  **Implicit Workflows:** Look at `test/` or `examples/`. How do humans chain these tools?
 
-Your `instructions.md` must solve these three problems.
+---
 
-## Step 0: Forensic Discovery
+## 📝 Phase 2: Draft `instructions.md` (The "Manual")
 
-Scan `package.json`, `src/`, and `README.md` to build a mental model of the server.
+Generate a **concise (<2KB)** Markdown file using this exact structure.
 
-1.  **Identify Tools:** List all `registerTool` calls.
-    - _Analyze:_ Which tools are "Read" (safe)? Which are "Write" (dangerous)?
-    - _Analyze:_ Are there dependencies? (e.g., Does Tool B require an ID from Tool A?)
-2.  **Identify Resources/Prompts:** Are there `registerResource` or `registerPrompt` calls?
-3.  **Detect "Golden Paths":** Look for test files (`.test.ts`) or example scripts. How do the _developers_ use these tools together?
-
-## Step 1: Draft `instructions.md`
-
-Generate the file using this exact structure.
-
-### Template Skeleton
+### Template Structure
 
 ```markdown
-# {Server Name} MCP Server - Agent Instructions
+# {Server Name} Instructions
 
-> **Guidance:** These instructions are injected into the agent's context. Use them to orchestrate tools effectively.
+> **Guidance for the Agent:** These instructions are available as a resource (`internal://instructions`) or prompt (`get-help`). Load them when you are confused about tool usage.
 
-## 1. Server Capabilities
+## 1. Core Capability
 
-- **Domain:** [One sentence on what this server manages, e.g., "Manages Todoist tasks and projects"]
-- **Key Entities:** [List primary data objects, e.g., `Task`, `Project`, `Label`]
+- **Domain:** [One sentence summary]
+- **Primary Resources:** [List key data types, e.g., `Tasks`, `Logs`, `DatabaseRows`]
 
-## 2. Interaction Patterns (The "Golden Paths")
+## 2. The "Golden Path" Workflows (Critical)
 
-### Pattern: [Workflow Name, e.g., "Finding and Fixing a Bug"]
+_Describe the standard order of operations. Do not assume the agent knows this._
 
-1. Call `search_issues` with a keyword.
-2. Call `get_issue_details` using the `id` from step 1.
-3. Call `create_comment` to ask for clarification OR `close_issue` if resolved.
-   > _Constraint:_ Never guess an Issue ID. Always search first.
+### Workflow A: [e.g., "Diagnosing an Error"]
 
-### Pattern: [Workflow Name, e.g., "Data Migration"]
+1. Call `list_errors` to find recent crashes.
+2. Call `get_error_logs` using the `id` from step 1.
+3. Call `analyze_stacktrace` (optional).
+   > **Constraint:** Never guess IDs. Always list first.
 
-1. Call `export_data` to get a snapshot.
-2. Call `transform_data` (if applicable).
-3. Call `import_data`.
+### Workflow B: [e.g., "Deploying a Fix"]
 
-## 3. Tool-Specific Nuances (Do not repeat Schemas)
+1. Call `validate_config`.
+2. Call `deploy` only if validation passes.
 
-- **`{tool_name}`:**
-  - **When to use:** [Specific trigger condition]
-  - **Best Practice:** [e.g., "Use `limit=50` to avoid pagination errors"]
-  - **Side Effects:** [e.g., "This sends an email to the user"]
+## 3. Tool Nuances & "Gotchas"
 
-- **`{tool_name}`:**
-  - **When to use:** ...
+_Do NOT repeat the JSON Schema. Focus on behavior._
 
-## 4. Known Limits & Error Handling
+- **`{tool_name}`**:
+  - **Latency:** "This tool takes ~30s. Do not timeout immediately."
+  - **Side Effects:** "Sends a real email. Ask user confirmation first."
+  - **Input Formats:** "Dates must be ISO-8601 (YYYY-MM-DD)."
 
-- **Rate Limits:** [e.g., "Max 5 concurrent requests"]
-- **Pagination:** [e.g., "Results are paginated. Use `next_cursor` to fetch more."]
-- **Error Recovery:** "If you get a `404`, try searching by name instead of ID."
+## 4. Error Handling Strategy
+
+- "If you receive `404 Not Found`, try searching with a wildcard `*`."
+- "If `rate_limited`, wait 5 seconds before retrying."
 ```
 
-## Step 2: Critical Review (Self-Correction)
+---
 
-Before outputting, verify:
+## 🔌 Phase 3: Integration Logic (The "How")
 
-- **No Schema dumping:** Did you copy-paste JSON parameter lists? **DELETE THEM.** The LLM has the schema. Only write _advice_.
-- **Conciseness:** Is the file under 2KB? Long instructions waste tokens.
-- **Hallucination Check:** Did you invent a "Workflow" that isn't supported by the tools? (e.g., suggesting "Delete" if no `delete_tool` exists).
+Determine the best way to expose this file based on the **Runtime detected in Phase 1**. Choose ONE path:
 
-## Step 3: Integration Plan
+### Path A: TypeScript (`@modelcontextprotocol/sdk`)
 
-Determine how to expose these instructions to the Runtime.
+_Implement a fixed Resource._
 
-**Scenario A: SDK Support (Best)**
-If the `McpServer` constructor supports an `instructions` or `systemPrompt` field, propose modifying `src/index.ts` to load the file:
+- **URI:** `internal://instructions`
+- **Mime:** `text/markdown`
+- **Implementation:**
 
 ```typescript
-const instructions = fs.readFileSync(
-  path.join(__dirname, 'instructions.md'),
-  'utf-8'
+// Add this to your server setup
+server.resource(
+  'internal://instructions',
+  new ResourceTemplate('internal://instructions', { list: undefined }),
+  async (uri) => ({
+    contents: [
+      {
+        uri: uri.href,
+        text: fs.readFileSync(
+          path.join(__dirname, '../instructions.md'),
+          'utf-8'
+        ),
+        mimeType: 'text/markdown',
+      },
+    ],
+  })
 );
-const server = new McpServer({
-  name: 'my-server',
-  version: '1.0.0',
-  instructions: instructions, // Check SDK version compatibility
-});
 ```
 
-**Scenario B: Resource Fallback (Universal)**
-If the SDK is older, propose registering a standard Resource:
+### Path B: Python (`FastMCP`)
 
-- URI: `internal://instructions`
-- Mime: `text/markdown`
-- Body: The content of `instructions.md`.
+_Use the constructor injection._
 
-## Final Output
+- **Implementation:**
 
-1. The full content of `src/instructions.md`.
-2. The code snippet to integrate it into `src/index.ts`.
+```python
+mcp = FastMCP("my-server", instructions=open("instructions.md").read())
+
+```
+
+### Path C: Python (Low-Level / Standard SDK)
+
+_Implement a Resource reader._
+
+- **URI:** `internal://instructions`
+- **Implementation:** Use the `@server.list_resources()` and `@server.read_resource()` decorators to return the file content.
+
+---
+
+## ✅ Phase 4: Final Output
+
+1. **The File:** A complete `src/instructions.md` (or root `instructions.md` depending on convention).
+2. **The Code:** The exact code snippet to expose this file as a **Resource** or **System Prompt** in the current codebase.
+3. **Verification:** A quick checklist confirming you didn't just dump JSON schemas into the markdown.
+
+**Constraint:** Do not invent tools. If the server has no "Write" tools, do not invent a "Deployment" workflow.

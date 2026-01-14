@@ -29,7 +29,7 @@
 
 3.  **Candidate Selection:**
     - Select the top 2-3 High-ROI candidates.
-    - **Action:** Use `superFetch` NOW to retrieve the _specific_ documentation for these candidates (e.g., `https://nodejs.org/docs/latest-v24.x/api/test.html`) to verify breaking changes or "Experimental" flags in v24.x.
+    - **Action:** Use your web browsing tool (aka `superFetch`) NOW to retrieve the _specific_ documentation for these candidates (e.g., `https://nodejs.org/docs/latest-v24.x/api/test.html`) to verify breaking changes or "Experimental" flags in v24.x.
 
 ### Output Trigger: Selection Menu
 
@@ -52,7 +52,7 @@ Present the **"High-Impact Target List"** based on your `<thinking>` analysis.
     - **Current Bloat:** `commander` / `yargs`
     - **Why:** `util.parseArgs` handles standard flag parsing natively.
 
-### 📊 Existing Usage (Refactoring Targets)
+### ⚠️ Existing Usage (Refactoring Targets)
 
 3.  **[Library Name]** (e.g., `node:fs/promises`)
     - **Context:** Detected usage of `fs` callbacks or `fs-extra`.

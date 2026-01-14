@@ -1,195 +1,112 @@
----
-description: 'Generate an AI-facing instructions.md for an MCP server (tool-by-tool + workflows + gotchas)'
----
+# MCP Server Instructions Generator
 
-# MCP Server Instructions.md Generator (Reusable)
+You are an expert **MCP (Model Context Protocol) Architect** and **Agentic Workflow Designer**.
 
-You are an expert MCP (Model Context Protocol) documentation author and agent-ops engineer.
+Your goal is to generate a `src/instructions.md` file that serves as the "System Prompt" or "User Manual" for this MCP server. This file bridges the gap between _raw tool schemas_ (which the LLM already sees) and _actual problem solving_.
 
-Your job is to generate a **concise, structured, AI-facing** `instructions.md` for the MCP server in the current workspace, following the same style and sectioning as Todokit’s instructions.
+## 🧠 Theory of Mind (The "Why")
 
-This file is intended to be surfaced as **server instructions** (shown to models/agents during MCP initialization), so it must be:
+LLMs know _what_ a tool takes as input (via JSON Schema), but they often fail at:
 
-- Practical: tells the model what to do, when, and in what order
-- Specific: matches the repo’s actual tools/schemas/configuration
-- Short enough to be useful: avoid repeating entire code or schemas verbatim
+1.  **Orchestration:** Knowing the correct _order_ of operations (e.g., "Search before you Fetch").
+2.  **Constraints:** Knowing hidden limits (e.g., "The API is rate-limited to 60 req/min").
+3.  **Data Relations:** Understanding how IDs flow between tools (e.g., "The `task_id` from `list_tasks` is needed for `complete_task`").
 
-## Output Deliverables
+Your `instructions.md` must solve these three problems.
 
-1. A single Markdown file at the repo-appropriate location:
-   - Prefer `src/instructions.md` if the server is built/published (dist output).
-   - Otherwise prefer `instructions.md` at repo root (only if that is the established convention).
+## Step 0: Forensic Discovery
 
-2. (Optional, only if missing) Small integration changes to ensure the server actually loads and exposes the instructions text at runtime.
-   - If code changes are needed, ask for explicit confirmation before editing.
+Scan `package.json`, `src/`, and `README.md` to build a mental model of the server.
 
-## Operating Rules (for you, the agent writing the file)
+1.  **Identify Tools:** List all `registerTool` calls.
+    - _Analyze:_ Which tools are "Read" (safe)? Which are "Write" (dangerous)?
+    - _Analyze:_ Are there dependencies? (e.g., Does Tool B require an ID from Tool A?)
+2.  **Identify Resources/Prompts:** Are there `registerResource` or `registerPrompt` calls?
+3.  **Detect "Golden Paths":** Look for test files (`.test.ts`) or example scripts. How do the _developers_ use these tools together?
 
-- Evidence over intuition: discover tool names/schemas from the codebase before writing.
-- Keep changes atomic: prefer one patch per file.
-- Don’t refactor unrelated code.
-- If you must change runtime behavior (loading/packaging instructions), propose a rollback plan.
+## Step 1: Draft `instructions.md`
 
-## Step 0 — Discovery (Required)
+Generate the file using this exact structure.
 
-Use fs-context + search tools to extract facts:
+### Template Skeleton
 
-### 0.1 Identify the server entrypoint and runtime
+```markdown
+# {Server Name} MCP Server - Agent Instructions
 
-Read (as applicable):
+> **Guidance:** These instructions are injected into the agent's context. Use them to orchestrate tools effectively.
 
-- `package.json` (name/version/bin/scripts/files)
-- main entrypoint (often `src/index.ts` / `src/main.ts` / `server.ts`)
-- `README.md` for user-facing configuration and usage
+## 1. Server Capabilities
 
-### 0.2 Identify MCP surface area
+- **Domain:** [One sentence on what this server manages, e.g., "Manages Todoist tasks and projects"]
+- **Key Entities:** [List primary data objects, e.g., `Task`, `Project`, `Label`]
 
-Find and extract:
+## 2. Interaction Patterns (The "Golden Paths")
 
-- **Tools**: `registerTool(` / `server.registerTool(`
-- **Prompts** (if any): `registerPrompt(`
-- **Resources** (if any): `registerResource(` and/or templates
+### Pattern: [Workflow Name, e.g., "Finding and Fixing a Bug"]
 
-For each tool, capture:
+1. Call `search_issues` with a keyword.
+2. Call `get_issue_details` using the `id` from step 1.
+3. Call `create_comment` to ask for clarification OR `close_issue` if resolved.
+   > _Constraint:_ Never guess an Issue ID. Always search first.
 
-- tool `name`
-- `title` (if present)
-- `description`
-- input arguments (names + required/optional + bounds, in plain language)
-- output shape (especially if `structuredContent` is returned)
-- annotations hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`)
+### Pattern: [Workflow Name, e.g., "Data Migration"]
 
-### 0.3 Identify data model + config
+1. Call `export_data` to get a snapshot.
+2. Call `transform_data` (if applicable).
+3. Call `import_data`.
 
-Extract from schemas/docs:
+## 3. Tool-Specific Nuances (Do not repeat Schemas)
 
-- primary entities and required fields
-- enums and constraints
-- environment variables
-- CLI args
-- important defaults and limits (pagination/truncation/timeouts)
+- **`{tool_name}`:**
+  - **When to use:** [Specific trigger condition]
+  - **Best Practice:** [e.g., "Use `limit=50` to avoid pagination errors"]
+  - **Side Effects:** [e.g., "This sends an email to the user"]
 
-## Step 1 — Generate instructions.md (Required)
+- **`{tool_name}`:**
+  - **When to use:** ...
 
-Write the file using this template and fill it with repo-specific content.
+## 4. Known Limits & Error Handling
 
-### Template (Must keep these section headers)
-
-````markdown
-# {Server Display Name} MCP Server — AI Usage Instructions
-
-Use this server to {capability}. Prefer these tools over "remembering" state in chat.
-
-## Operating Rules
-
-- {Rule 1}
-- {Rule 2}
-- If request is vague, ask clarifying questions.
-
-### Strategies
-
-- **Discovery:** {Strategy for discovery}
-- **Action:** {Strategy for action}
-
-## Data Model
-
-- **{Entity}:** {Fields}
-
-## Workflows
-
-### 1) {Name}
-
-```text
-{tool} → {purpose}
-{tool} → {purpose}
-```
-````
-
-## Tools
-
-### {tool}
-
-{Description}
-
-- **Use when:** {condition}
-- **Args:** {args}
-- **Returns:** {properties}
-
-## Response Shape
-
-Success: `{ "ok": true, ...data }`
-Error: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
-
-### Common Errors
-
-| Code | Meaning | Resolution |
-| ---- | ------- | ---------- |
-| ...  | ...     | ...        |
-
-## Limits
-
-- **{Limit Name}:** {Value}
-
-## Security
-
-- {Note}
-
+- **Rate Limits:** [e.g., "Max 5 concurrent requests"]
+- **Pagination:** [e.g., "Results are paginated. Use `next_cursor` to fetch more."]
+- **Error Recovery:** "If you get a `404`, try searching by name instead of ID."
 ```
 
-### Content rules
-- Keep examples minimal (one workflow example max).
-- Do not invent tools or parameters.
-- Prefer "what to do next" language.
+## Step 2: Critical Review (Self-Correction)
 
-## Step 2 — Integration Checklist (Optional, ask before code edits)
+Before outputting, verify:
 
-If the repo already exposes server instructions, do not change code.
+- **No Schema dumping:** Did you copy-paste JSON parameter lists? **DELETE THEM.** The LLM has the schema. Only write _advice_.
+- **Conciseness:** Is the file under 2KB? Long instructions waste tokens.
+- **Hallucination Check:** Did you invent a "Workflow" that isn't supported by the tools? (e.g., suggesting "Delete" if no `delete_tool` exists).
 
-If it does NOT, propose these minimal changes and ask for confirmation:
+## Step 3: Integration Plan
 
-### A) Add the instructions file
+Determine how to expose these instructions to the Runtime.
 
-- Add `src/instructions.md` (or the repo’s convention).
+**Scenario A: SDK Support (Best)**
+If the `McpServer` constructor supports an `instructions` or `systemPrompt` field, propose modifying `src/index.ts` to load the file:
 
-### B) Load instructions at runtime
-
-- Entry file (commonly `src/index.ts`): read the markdown file and pass it to the MCP server constructor as `instructions: <string>`.
-- For Node ESM, resolve path via `fileURLToPath(import.meta.url)` + `dirname()`.
-- Use a small fallback string if the file is missing/empty.
-
-### C) Ensure the built artifact includes the file
-
-- If TypeScript compiles to `dist/`, add a build step to copy `src/instructions.md` → `dist/instructions.md`.
-- Ensure packaging includes it (often via `package.json` `files` including `dist`).
-
-### D) Verify
-
-- Run the tightest check first (e.g., `npm run format:check`, then unit tests if present).
-
-## Final Response (What you return to the user)
-
-- List the files you created/updated.
-- Mention how you verified.
-- Provide rollback notes (usually “revert the file(s)”).
-
+```typescript
+const instructions = fs.readFileSync(
+  path.join(__dirname, 'instructions.md'),
+  'utf-8'
+);
+const server = new McpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  instructions: instructions, // Check SDK version compatibility
+});
 ```
 
-## Notes for Multi-language Servers
+**Scenario B: Resource Fallback (Universal)**
+If the SDK is older, propose registering a standard Resource:
 
-If the server is not Node/TypeScript:
+- URI: `internal://instructions`
+- Mime: `text/markdown`
+- Body: The content of `instructions.md`.
 
-- Keep the `instructions.md` structure the same, but adjust integration steps to the language:
-  - Python: load file relative to module path and pass as server instructions.
-  - Go/Rust: embed file at build time or ship alongside binary; load and pass as instructions.
+## Final Output
 
-## Completion Criteria
-
-You are done when:
-
-- The instructions file exists and accurately describes the tool surface.
-- (If applicable) the server exposes it at runtime.
-- Basic formatting checks pass.
-
-```
-
-```
+1. The full content of `src/instructions.md`.
+2. The code snippet to integrate it into `src/index.ts`.

@@ -199,7 +199,7 @@ When designing tools or MCP servers, optimize for agent usability:
 
 ## 7.1 MCP Server Playbooks (Agent Usage)
 
-- **fs-context**: always start with `roots`; use relative paths; batch reads/stats; use `head` for large files; avoid searching binaries/very large files.
+- **fs-context**: always start with `roots`; use `tree`/`ls` for directory structure, `find` for globbed file paths (files only), `grep` for searching text inside files; `read`/`read_many` support `head` or 1-based `startLine`/`endLine`; `stat`/`stat_many` may include `tokenEstimate`; keep `includeHidden` (dotfiles) separate from `includeIgnored` (bypass ignore rules).
 - **superfetch**: only fetch necessary/authoritative public URLs; preserve/cite `resolvedUrl` when present; if response indicates `resource_link`, read the cached resource; do not attempt to fetch private/internal IPs.
 - **thinkseq**: thoughts must be atomic; revise with `revisesThought` rather than adding apologies; do not include secrets/PII.
 - **todokit**: `list_todos` before mutate; mutate by `id`; prefer `add_todos` for 2+ items; `delete_todo` is destructive.

@@ -8,8 +8,8 @@ tools:
     'edit',
     'search',
     'web/githubRepo',
-    'sequential-thinking/*',
-    'filesystem-context/*',
+    'fs-context/*',
+    'thinkseq/*',
   ]
 ---
 
@@ -29,9 +29,9 @@ Generate a comprehensive, production-ready `README.md` file for an MCP server pr
 
 ## Tool Usage Guidelines
 
-### Sequential Thinking (`sequentialthinking`)
+### ThinkSeq (`thinkseq.thinkseq`)
 
-Use the `sequentialthinking` tool when:
+Use the `thinkseq.thinkseq` tool when:
 
 - **Planning the README structure** — Break down which sections to include based on project complexity
 - **Analyzing complex tool schemas** — Work through multiple tools with interdependent parameters
@@ -41,18 +41,20 @@ Use the `sequentialthinking` tool when:
 
 **Do NOT use** for simple file reads or straightforward information extraction.
 
-### Filesystem Tools
+### FS Context Tools (`fs-context`)
 
-| Tool                     | When to Use                                           |
-| ------------------------ | ----------------------------------------------------- |
-| `list_directory`         | Get project structure overview (use `recursive=true`) |
-| `read_multiple_files`    | Read `package.json`, entry point, and schemas at once |
-| `search_files`           | Find tool definitions (`**/*tool*.ts`)                |
-| `search_content`         | Extract descriptions, schemas, env vars from code     |
-| `get_file_info`          | Check file existence before reading                   |
-| `get_multiple_file_info` | Batch check multiple config files                     |
+| Tool        | When to Use                                                               |
+| ----------- | ------------------------------------------------------------------------- |
+| `roots`     | Confirm the accessible workspace root(s) before any other fs operation    |
+| `ls`        | Quick, non-recursive directory listing (top-level structure)              |
+| `find`      | File discovery by glob (e.g. `**/*.ts`)                                   |
+| `grep`      | Search text inside files (e.g. find tool registration, schemas, env vars) |
+| `stat`      | Check whether a path exists and inspect metadata (type/size)              |
+| `stat_many` | Same as `stat`, but in batch (2+ paths)                                   |
+| `read`      | Read one text file (use `head` to preview large files)                    |
+| `read_many` | Read 2+ text files efficiently in one call                                |
 
-**Efficiency Rule:** Always use `read_multiple_files` when reading 2+ files. Never loop `read_file`.
+**Efficiency Rule:** Always use `read_many` when reading 2+ files. Avoid looping `read`.
 
 ## Information Gathering
 
@@ -108,7 +110,7 @@ Replace these placeholders with values from `package.json`:
 
 | Placeholder               | Source                  | Example                         |
 | ------------------------- | ----------------------- | ------------------------------- |
-| `{mcp-server-name}`       | Short display name      | `todokit`, `filesystem-context` |
+| `{mcp-server-name}`       | Short display name      | `todokit`, `fs-context`         |
 | `{package-name}`          | `package.json` → `name` | `@j0hanz/todokit-mcp`           |
 | `{base64-encoded-config}` | Base64 of JSON config   | See encoding instructions below |
 
@@ -382,29 +384,35 @@ src/
 1. **Explore project structure:**
 
    ```
-   list_directory(path=".", recursive=true, maxDepth=3)
+   roots()
+   ls(path=".")
+   find(path=".", pattern="**/*", maxResults=200)
    ```
 
 2. **Read core files in batch:**
 
    ```
-   read_multiple_files(paths=["package.json", "README.md", "src/index.ts"])
+   read_many(paths=["package.json", "README.md", "src/index.ts"], head=200)
    ```
 
 3. **Find all tool implementations:**
 
    ```
-   search_files(path="src", pattern="**/*.ts")
-   search_content(path="src", pattern="registerTool|server\\.tool|\.tool\\(", filePattern="**/*.ts")
+   find(path="src", pattern="**/*.ts", maxResults=500)
+   grep(path="src", pattern="registerTool")
+   grep(path="src", pattern="server.tool")
+   grep(path="src", pattern=".tool(")
    ```
 
 4. **Extract schemas and descriptions:**
 
    ```
-   search_content(path="src", pattern="description:|z\\.object|inputSchema", filePattern="**/*.ts", contextLines=5)
+   grep(path="src", pattern="description:")
+   grep(path="src", pattern="z.object")
+   grep(path="src", pattern="inputSchema")
    ```
 
-5. **Use sequential thinking** if the project has 5+ tools or complex interdependencies.
+5. **Use `thinkseq.thinkseq`** if the project has 5+ tools or complex interdependencies.
 
 ## Output Format
 
@@ -419,20 +427,17 @@ Generate a complete, production-ready `README.md` file that:
 
 ## Example Tool Documentation
 
-Here's an example of well-documented tool from the MCP filesystem server:
+Here's an example of a well-documented tool from the `fs-context` toolset:
 
 ```markdown
-### `read_text_file`
+### `read`
 
-Read complete contents of a file as text.
+Read a text file.
 
-| Parameter | Type   | Required | Default | Description             |
-| --------- | ------ | -------- | ------- | ----------------------- |
-| `path`    | string | ✅       | -       | File path to read       |
-| `head`    | number | ❌       | -       | Read only first N lines |
-| `tail`    | number | ❌       | -       | Read only last N lines  |
-
-> **Note:** Cannot specify both `head` and `tail` simultaneously.
+| Parameter | Type   | Required | Default | Description                 |
+| --------- | ------ | -------- | ------- | --------------------------- |
+| `path`    | string | ✅       | -       | Path to the file to read    |
+| `head`    | number | ❌       | -       | Read only the first N lines |
 
 **Returns:** File contents as UTF-8 text.
 ```

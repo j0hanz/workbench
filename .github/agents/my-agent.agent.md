@@ -19,6 +19,7 @@ tools:
     'edit/createFile',
     'edit/editFiles',
     'search',
+    'agent',
     'brave-search/brave_news_search',
     'brave-search/brave_summarizer',
     'brave-search/brave_web_search',
@@ -34,7 +35,6 @@ tools:
     'superfetch/*',
     'thinkseq/*',
     'todokit/*',
-    'agent',
   ]
 handoffs:
   - label: Research

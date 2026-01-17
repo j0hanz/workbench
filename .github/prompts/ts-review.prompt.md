@@ -2,7 +2,8 @@
 
 > **Sources**: [Handbook](https://www.typescriptlang.org/docs/handbook/) | [Performance Wiki](https://github.com/microsoft/TypeScript/wiki/Performance) | [Do's and Don'ts](https://www.typescriptlang.org/docs/handbook/declaration-files/do-s-and-don-ts.html) | [TSConfig Reference](https://www.typescriptlang.org/tsconfig/) | [Modules Reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html)
 >
-> **Local sources**: This repo’s `ts/` Markdown notes (handbook extracts + TS perf notes).
+> **Local sources**: This repo’s `ts/` Markdown notes (handbook extracts + TS perf notes).>
+> **Context (Jan 2026)**: TypeScript 5.9 stable, TS 6.0 (Q1 2026), TS 7.0 native port (late 2026, 10x faster).
 
 ---
 
@@ -115,12 +116,27 @@ function isFish(pet: Fish | Bird): pet is Fish {
 
 - `typeof x === "object"` does **not** exclude `null`.
 - Truthiness checks can be wrong for valid values (`0`, `""`, `0n`). Prefer explicit checks like `x != null` or `x === undefined`.
+  - **Empty array is truthy**: `if (arr)` doesn't check if array has items. Use `arr.length > 0`.
+  - **Empty string is falsy**: `if (str)` excludes `""` which might be valid. Use `str !== undefined`.
+  - **Zero is falsy**: For numeric IDs where 0 is valid, use `id != null` instead of `if (id)`.
 - Prefer discriminated unions or `in` checks over broad assertions (`as Foo`) and non-null assertions (`!`).
 
 #### Value Space vs Type Space (Common Confusions)
 
 - Use `typeof` in _type_ positions: `ReturnType<typeof fn>`.
 - Indexed access must use a _type_: `T[K]`, `typeof key` (not a value variable `key`).
+
+  ```typescript
+  // ❌ Common mistake: using value-space variable in type position
+  const key = 'name';
+  type T = Record<typeof key, string>;  // Error: 'key' is not a type
+
+  // ✅ Correct: use literal or const assertion
+  type T = Record<'name', string>;      // Works
+  const key = 'name' as const;
+  type T2 = Record<typeof key, string>; // Works with const assertion
+  ```
+
 - Prefer `keyof` + indexed access for safe property plumbing: `function get<T, K extends keyof T>(obj: T, key: K): T[K]`.
 
 #### Objects: Optionality, Defaults, and Exactness
@@ -133,6 +149,21 @@ function isFish(pet: Fish | Bird): pet is Fish {
 
 - Avoid `!` definite assignment unless you can justify the runtime initialization path (framework injection, decorators, etc.).
 - If you only want to _re-declare_ an inherited field’s type, use `declare` to avoid emitting a runtime field that can overwrite base initialization.
+
+```typescript
+  class Base { x = 1; }
+
+  // ❌ With useDefineForClassFields:true (default target≥ES2022)
+  class Derived extends Base {
+    x = 2;  // OVERWRITES Base.x after super() completes
+  }
+
+  // ✅ Type-only declaration, no JS emit
+  class Derived extends Base {
+    declare x: number;  // Refines type without runtime field
+  }
+```
+
 - If methods are passed around, choose deliberately between:
   - **Arrow property**: correct `this` at runtime (but per-instance allocation, no `super`)
   - **Method + `this` parameter**: no per-instance allocation, but callers can still misuse it in plain JS
@@ -144,8 +175,23 @@ function isFish(pet: Fish | Bird): pet is Fish {
 - Prefer `import type { T } from "..."` / `export type { T }` to keep emitted JS lean and avoid accidental runtime dependencies.
 - If `verbatimModuleSyntax` is on, be explicit about type-only imports/exports.
 - A type-only import can’t combine a default import and named bindings; split the import if needed.
+  **Library Authors**: Use `verbatimModuleSyntax` to prevent `esModuleInterop` conflicts:
+
+```jsonc
+{
+  "compilerOptions": {
+    "verbatimModuleSyntax": true, // Enforces syntax matching output format
+    "declaration": true,
+    "isolatedModules": true,
+  },
+}
+```
+
+This ensures declaration files work correctly regardless of consumer's compiler settings.
 
 #### Discriminated Unions + Exhaustiveness
+
+Discriminated unions are the **preferred pattern** for state management and variant types. Always use exhaustiveness checking to catch missing cases during refactors:
 
 ```typescript
 interface Circle {
@@ -158,8 +204,9 @@ interface Square {
 }
 type Shape = Circle | Square;
 
+// Critical for maintainability: catches missing cases at compile time
 function assertNever(x: never): never {
-  throw new Error('Unexpected: ' + x);
+  throw new Error(`Unhandled case: ${JSON.stringify(x)}`);
 }
 
 function getArea(shape: Shape): number {
@@ -169,10 +216,12 @@ function getArea(shape: Shape): number {
     case 'square':
       return shape.sideLength ** 2;
     default:
-      return assertNever(shape); // Error if new variant added
+      return assertNever(shape); // Compile error if Shape gains new variant
   }
 }
 ```
+
+**Why this matters**: When you add a new shape type, TypeScript will flag every switch statement missing the new case, preventing runtime errors.
 
 ---
 
@@ -186,6 +235,14 @@ Use reproducible compiler metrics as a baseline:
   - Track **Instantiations** as a proxy for type-checking work
 - `npx tsc --noEmit --generateTrace <traceDir>`
   - Inspect `trace.json` in a trace viewer (e.g. Perfetto) to find expensive checks
+    **TypeScript Trace Analyzer** (for digestible trace analysis):
+
+```bash
+npx tsc --generateTrace trace
+npx @typescript/analyze-trace trace
+```
+
+This tool identifies computationally expensive types and compiler hotspots, making trace data actionable.
 
 #### Type Complexity Issues
 
@@ -225,7 +282,7 @@ export function func(): OtherType {
 }
 ```
 
-#### Recommended tsconfig.json (TS 5.9+)
+#### Recommended tsconfig.json (TS 5.9 Stable)
 
 ```jsonc
 {
@@ -262,6 +319,20 @@ Suggested additions to consider (project-dependent):
 }
 ```
 
+**Monorepo Performance Tuning**: For projects with 100+ subprojects or memory constraints, limit editor overhead:
+
+```jsonc
+{
+  "compilerOptions": {
+    "composite": true,
+    "disableReferencedProjectLoad": true, // Limit project loading while editing
+    "disableSolutionSearching": true, // Disable cross-project searches
+  },
+}
+```
+
+These options trade completeness for speed in editor scenarios. **Optimal project count: 5-20** (avoid tiny satellites or single giant projects). Balance project granularity with overhead—too many projects increase type-checking cost per project.
+
 ---
 
 ### Phase 5: Modern TypeScript Patterns
@@ -293,22 +364,30 @@ import { User } from './types';
 import type { User as UserType } from './types';
 import { type Config, processUser } from './users';
 
+// Import Defer (TS 5.9+): Deferred module evaluation for startup performance
+import defer * as analytics from './analytics';
+
+function trackEvent(name: string) {
+  analytics.track(name);  // Module evaluated only when first accessed
+}
+
 // Result type (discriminated union)
 type Result<T, E = Error> = { ok: true; data: T } | { ok: false; error: E };
 
-// Validated constants
+// Validated constants with as const satisfies
 const ROUTES = {
   home: '/',
   users: '/users',
 } as const satisfies Record<string, `/${string}`>;
+// Locks literals + validates shape at compile time
 
-// NoInfer for defaults (TS 5.4+)
+// NoInfer for defaults (TS 5.4+): Prevents type widening in generic defaults
 function createLight<C extends string>(
   colors: C[],
-  defaultColor?: NoInfer<C>
+  defaultColor?: NoInfer<C>  // Must be from colors array
 ): void {}
-createLight(['red', 'green'], 'red'); // ✅
-createLight(['red', 'green'], 'blue');
+createLight(['red', 'green'], 'red');    // ✅
+createLight(['red', 'green'], 'blue');   // ❌ Error
 ```
 
 #### Advanced Type Patterns (Reference)
@@ -348,7 +427,7 @@ Return **valid JSON only**. Adapt detail level to analysis mode.
   "context": {
     "runtime": "node|browser|react|serverless|unknown",
     "module_system": "esm|cjs|mixed|unknown",
-    "ts_version": "5.x",
+    "ts_version": "5.9|6.x|7.x",
     "assumptions": ["string"],
     "missing_info": ["string"]
   },

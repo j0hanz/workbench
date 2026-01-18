@@ -2,6 +2,9 @@
 description: "Generate production-ready MCP servers in TypeScript"
 ---
 
+> **Related Files:**  
+> [typescript-mcp-server.instructions.md](../instructions/typescript-mcp-server.instructions.md) for mandatory rules | [typescript-mcp-expert.agent.md](../agents/typescript-mcp-expert.agent.md) for debugging workflows
+
 # Generate TypeScript MCP Server
 
 Generate a Model Context Protocol server following these steps.
@@ -204,6 +207,18 @@ export default defineConfig(
 );
 ```
 
+### Scripts Reference
+
+| Script | Purpose |
+|--------|--------|
+| `dev` | Watch mode with tsx (hot reload) |
+| `build` | Compile TypeScript to `dist/` |
+| `start` | Run compiled server |
+| `test` | Run unit tests with Node test runner |
+| `inspector` | Launch MCP Inspector for testing |
+| `lint` | Run ESLint |
+| `type-check` | Verify types without emitting |
+
 ## Step 5: Generate Server Entry
 
 **stdio transport:**
@@ -309,6 +324,22 @@ app.post("/mcp", async (req, res) => {
 app.listen(process.env.PORT || 3000);
 ```
 
+### Shutdown Handlers
+
+Add these to `src/index.ts` after transport connection:
+
+```typescript
+process.on('SIGTERM', () => {
+  console.error('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.error('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+```
+
 ## Step 6: Generate Tool Template
 
 ```typescript
@@ -369,6 +400,97 @@ export const DefaultOutputSchema = z.strictObject({
 });
 ```
 
+## Step 6.5: Generate Resource Templates
+
+**Static resource:**
+
+```typescript
+server.registerResource(
+  'config',
+  { title: 'Configuration', mimeType: 'application/json' },
+  async () => ({
+    contents: [
+      {
+        uri: 'config://settings',
+        text: JSON.stringify({ version: '1.0', env: process.env.NODE_ENV }),
+      },
+    ],
+  })
+);
+```
+
+**Dynamic resource with completion:**
+
+```typescript
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+server.registerResource(
+  'user',
+  new ResourceTemplate('users://{userId}', {
+    list: undefined,
+    complete: { userId: (p) => userIds.filter((id) => id.startsWith(p)) },
+  }),
+  { title: 'User Profile', mimeType: 'application/json' },
+  async (uri, { userId }) => ({
+    contents: [{ uri: uri.href, text: JSON.stringify(await getUser(userId)) }],
+  })
+);
+```
+
+## Step 6.75: Generate Prompt Templates
+
+**Basic prompt:**
+
+```typescript
+server.registerPrompt(
+  'review',
+  {
+    argsSchema: {
+      code: z.string().min(1).describe('Code to review'),
+      language: z.enum(['typescript', 'python']).describe('Programming language'),
+    },
+  },
+  ({ code, language }) => ({
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Review this ${language} code:\n\n${code}`,
+        },
+      },
+    ],
+  })
+);
+```
+
+**Prompt with argument completion:**
+
+```typescript
+import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
+
+server.registerPrompt(
+  'analyze',
+  {
+    argsSchema: {
+      file: completable(
+        z.string().min(1).describe('File path'),
+        (partial) => files.filter((f) => f.startsWith(partial))
+      ),
+      depth: z.enum(['shallow', 'deep']).describe('Analysis depth'),
+    },
+  },
+  ({ file, depth }) => ({
+    messages: [
+      {
+        role: 'user',
+        content: { type: 'text', text: `Analyze ${file} at ${depth} depth` },
+      },
+    ],
+  })
+);
+```
+
 ## Step 7: Generate Helpers
 
 **lib/errors.ts:**
@@ -421,6 +543,102 @@ export function createToolResponse<T extends Record<string, unknown>>(
     structuredContent,
   };
 }
+```
+
+## Step 8: Generate Tests
+
+**Inspector testing:**
+
+```bash
+# stdio server
+npx @modelcontextprotocol/inspector node dist/index.js
+
+# HTTP server
+npx @modelcontextprotocol/inspector http://localhost:3000/mcp
+```
+
+**Unit test boilerplate (tests/tools.test.ts):**
+
+```typescript
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { register{{ToolName}} } from '../src/tools/{{tool_name}}.js';
+
+describe('{{ToolName}} Tool', () => {
+  it('registers successfully', () => {
+    const server = new McpServer(
+      { name: 'test-server', version: '1.0.0' },
+      { capabilities: {} }
+    );
+    register{{ToolName}}(server);
+    assert.ok(server);
+  });
+
+  it('validates input schema', () => {
+    const schema = z.strictObject({
+      param: z.string().min(1).max(200),
+    });
+    const result = schema.safeParse({ param: 'test' });
+    assert.ok(result.success);
+  });
+});
+```
+
+Run: `npm test` or `node --import tsx/esm --test tests/*.test.ts`
+
+## Step 9: Generate README
+
+```markdown
+# {{Package Name}}
+
+{{Description}}
+
+## Installation
+
+\`\`\`bash
+npm install {{package-name}}
+\`\`\`
+
+## Usage
+
+### CLI
+
+\`\`\`bash
+{{bin-name}}
+\`\`\`
+
+### MCP Configuration
+
+\`\`\`json
+{
+  "mcpServers": {
+    "{{mcp-name}}": {
+      "command": "node",
+      "args": ["path/to/dist/index.js"]
+    }
+  }
+}
+\`\`\`
+
+## Development
+
+\`\`\`bash
+npm run dev      # Watch mode
+npm run build    # Compile
+npm test         # Run tests
+npm run inspector # Launch MCP Inspector
+\`\`\`
+
+## Testing
+
+\`\`\`bash
+npx @modelcontextprotocol/inspector node dist/index.js
+\`\`\`
+
+## License
+
+MIT
 ```
 
 ## Generation Rules

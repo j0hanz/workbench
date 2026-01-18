@@ -14,6 +14,11 @@ tools:
   ]
 ---
 
+## Related Files
+
+- [typescript-mcp-server.instructions.md](../instructions/typescript-mcp-server.instructions.md) - Mandatory rules and patterns
+- [typescript-mcp-server-generator.prompt.md](../prompts/typescript-mcp-server-generator.prompt.md) - Project scaffolding generator
+
 # MCP TypeScript Expert
 
 Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeScript 5.9+, Node.js 20+, Zod v4.x.
@@ -30,6 +35,10 @@ Build MCP servers with `@modelcontextprotocol/sdk` **v1.x (production)**, TypeSc
 | File structure exists        | **Follow** existing patterns             |
 | No existing patterns         | **Use** `src/tools/{name}.ts` convention |
 | Security-sensitive operation | **Warn** about risks, suggest safeguards |
+
+## Project Structure
+
+See [typescript-mcp-server.instructions.md](../instructions/typescript-mcp-server.instructions.md#project-structure) for the standard `src/` layout.
 
 ## MCP 2025-11-25 Reality Checks
 
@@ -90,6 +99,20 @@ Use ThinkSeq when the work is ambiguous, safety-sensitive, or needs a clear mult
 1. Check existing tool patterns in codebase
 2. Create with input + output schemas (`.describe()` all fields)
 3. Set annotations, add error handling with `isError: true`
+
+### Adding Resource
+
+1. Decide: static resource or dynamic template
+2. Static: `server.registerResource('name', metadata, handler)`
+3. Dynamic: use `ResourceTemplate` with URI pattern and completion
+4. Return `contents` array with `uri` and `text` or `blob`
+
+### Adding Prompt
+
+1. Define argument schema with Zod
+2. Use `completable()` wrapper for arguments with completion
+3. Return `messages` array with user/assistant roles
+4. Include system context in user message if needed
 
 ### Debugging
 
@@ -184,6 +207,17 @@ const app = createMcpExpressApp({ host: 'localhost' }); // Auto DNS protection
 
 Streamable HTTP is recommended for remote servers; stdio is ideal for local/CLI use.
 
+## Helper Patterns
+
+Import from `lib/` for consistent error handling:
+
+```typescript
+import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
+import { createToolResponse } from '../lib/tool_response.js';
+```
+
+See [typescript-mcp-server.instructions.md](../instructions/typescript-mcp-server.instructions.md#error-handling) for full implementations.
+
 ## Common Issues
 
 | Problem                 | Cause                          | Fix                                                       |
@@ -214,11 +248,63 @@ Streamable HTTP is recommended for remote servers; stdio is ideal for local/CLI 
 | Sensitive user input           | Use URL-mode elicitation (never form-mode for secrets)           |
 | Sampling trust & safety        | Require human approval; check sampling capabilities              |
 
+## Advanced Capabilities
+
+### Sampling
+
+```typescript
+// Check capability first
+if (server.server.createMessage) {
+  const response = await server.server.createMessage({
+    messages: [{ role: 'user', content: { type: 'text', text: 'Summarize' } }],
+    maxTokens: 500,
+  });
+}
+```
+
+### Elicitation
+
+```typescript
+// Check capability first
+if (server.server.elicitInput) {
+  const result = await server.server.elicitInput({
+    message: 'Confirm action?',
+    requestedSchema: {
+      type: 'object',
+      properties: { confirm: { type: 'boolean' } },
+      required: ['confirm'],
+    },
+  });
+  if (result.action === 'accept' && result.content?.confirm) {
+    // proceed
+  }
+}
+```
+
 ## Testing
+
+### Inspector (Integration)
 
 ```bash
 npx @modelcontextprotocol/inspector node dist/index.js        # stdio
 npx @modelcontextprotocol/inspector http://localhost:3000/mcp # HTTP
+```
+
+### Unit Tests
+
+```typescript
+// tests/tools.test.ts
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+describe('Tool Tests', () => {
+  it('registers tool successfully', () => {
+    const server = new McpServer({ name: 'test', version: '1.0.0' });
+    // Register and test tool behavior
+    assert.ok(server);
+  });
+});
 ```
 
 ## Principles

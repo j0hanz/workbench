@@ -3,11 +3,33 @@ description: 'Rules for building MCP servers with TypeScript SDK'
 applyTo: '**/*.ts, **/*.js, **/package.json'
 ---
 
+## Related Files
+
+- [typescript-mcp-expert.agent.md](../agents/typescript-mcp-expert.agent.md) - Agent workflows and debugging
+- [typescript-mcp-server-generator.prompt.md](../prompts/typescript-mcp-server-generator.prompt.md) - Project scaffolding generator
+
 # TypeScript MCP Server Rules
 
 > **SDK**: `@modelcontextprotocol/sdk` **v1.x (production)** | **Zod**: v4.x | **Node**: `>=20.0.0` | **TS**: `5.9+`
 >
 > **Note**: SDK v2 is pre-alpha; v1.x is the recommended production line.
+
+## Project Structure
+
+```
+src/
+├── index.ts              # Entry point (shebang, transport, shutdown)
+├── tools/
+│   ├── index.ts          # registerAllTools(server)
+│   └── {name}.ts         # One tool per file
+├── schemas/
+│   ├── inputs.ts         # Zod input schemas (z.strictObject)
+│   └── outputs.ts        # Zod output schemas
+└── lib/
+    ├── errors.ts         # createErrorResponse, getErrorMessage
+    ├── tool_response.ts  # createToolResponse helper
+    └── types.ts          # Shared types (optional)
+```
 
 ## Mandatory Rules
 
@@ -166,6 +188,21 @@ async (params): Promise<ToolResponse> => {
 - **Sampling**: only if the client declares sampling capability; keep a human in the loop
 - **Sampling tool use**: only if the client declares `sampling.tools`
 - **Elicitation**: only if the client declares elicitation capability; use URL mode for sensitive info
+
+### Capabilities Negotiation
+
+```typescript
+// Check client capabilities before using advanced features
+if (server.server.createMessage) {
+  // Sampling is available
+  const response = await server.server.createMessage({ ... });
+}
+
+if (server.server.elicitInput) {
+  // Elicitation is available
+  const result = await server.server.elicitInput({ ... });
+}
+```
 
 ## Security
 

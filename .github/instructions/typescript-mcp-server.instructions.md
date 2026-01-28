@@ -1,6 +1,6 @@
 ---
-description: 'Rules for building MCP servers with TypeScript SDK'
-applyTo: '**/*.ts, **/*.js, **/package.json'
+description: "Rules for building MCP servers with TypeScript SDK"
+applyTo: "**/*.ts, **/*.js, **/package.json"
 ---
 
 ## Related Files
@@ -8,17 +8,22 @@ applyTo: '**/*.ts, **/*.js, **/package.json'
 - [typescript-mcp-expert.agent.md](../agents/typescript-mcp-expert.agent.md) - Agent workflows and debugging
 - [typescript-mcp-server-generator.prompt.md](../prompts/typescript-mcp-server-generator.prompt.md) - Project scaffolding generator
 
-# TypeScript MCP Server Rules
+# TypeScript MCP Server Rules (SDK v1.x)
 
-> **SDK**: `@modelcontextprotocol/sdk` **v1.x (production)** | **Zod**: v4.x | **Node**: `>=20.0.0` | **TS**: `5.9+`
->
-> **Note**: SDK v2 is pre-alpha; v1.x is the recommended production line.
+Target stack:
 
-## Project Structure
+- `@modelcontextprotocol/sdk` **v1.x (production)**
+- Zod **v4.x**
+- Node **>=20**
+- TypeScript **5.9+** (strict)
 
-```
+## Repository Convention (Default)
+
+Use this structure unless the repo already has established patterns:
+
+```text
 src/
-├── index.ts              # Entry point (shebang, transport, shutdown)
+├── index.ts              # Entrypoint: shebang, transport wiring, shutdown
 ├── tools/
 │   ├── index.ts          # registerAllTools(server)
 │   └── {name}.ts         # One tool per file
@@ -26,70 +31,53 @@ src/
 │   ├── inputs.ts         # Zod input schemas (z.strictObject)
 │   └── outputs.ts        # Zod output schemas
 └── lib/
-    ├── errors.ts         # createErrorResponse, getErrorMessage
-    ├── tool_response.ts  # createToolResponse helper
+    ├── errors.ts         # getErrorMessage + error helpers
+    ├── tool_response.ts  # createToolResponse/createErrorResponse helpers
     └── types.ts          # Shared types (optional)
 ```
 
 ## Mandatory Rules
 
-### Versioning & Compatibility
+### Versions & Imports
 
-- Use `@modelcontextprotocol/sdk` v1.x for production servers
-- SDK supports Zod v3 and v4; these rules standardize on Zod v4.x.
-- Import `z` from `zod` (do not pin `zod/v3` unless you are intentionally using v3).
-- **v2 Migration Note**: SDK v2 (pre-alpha, stable Q1 2026) splits into `@modelcontextprotocol/server` and `@modelcontextprotocol/client`
+- Use `@modelcontextprotocol/sdk` **v1.x** for production servers.
+- Standardize on **Zod v4** (`import { z } from 'zod'`); do not use `zod/v3` unless intentionally pinned.
+- Use **named exports only** (no default exports).
+- Use **type-only imports**: `import type { X }` / `import { type X }`.
+- Use `.js` extensions in **local imports** when using NodeNext/ESM output.
+- Exported functions should have **explicit return types**.
 
-### TypeScript & Imports
+### TypeScript Strictness
 
-- Use `.js` extensions in all local imports (NodeNext resolution)
-- Use `import type { X }` for type-only imports (inline style: `import { type X }`)
-- Named exports only (no default exports)
-- Explicit return types on exported functions
-- Enable `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules`
-- Use `prefer-const`, no `var`, prefer template literals
+Enable (or justify deviations):
+
+- `strict`
+- `noUncheckedIndexedAccess`
+- `verbatimModuleSyntax`
+- `isolatedModules`
 
 ### CLI Entrypoint (Shebang)
 
-- If the server is executed via `node dist/index.js` **or** exposed via `bin` in `package.json`, `src/index.ts` MUST start with this exact first line:
+If executed via `node dist/index.js` or exposed via `bin` in `package.json`:
+
+- `src/index.ts` MUST start with this exact first line (no BOM/blank lines):
   - `#!/usr/bin/env node`
-- The shebang must be the very first line in the file (no BOM, no blank line before it).
 
-### Tool Implementation
+### Tool Naming
 
-```typescript
-server.registerTool(
-  'tool_name',
-  {
-    title: 'Human Title', // Required: UI display
-    description: 'LLM description', // Required: clear, actionable
-    inputSchema: z.strictObject({
-      param: z.string().min(1).max(200).describe('Parameter description'),
-    }),
-    outputSchema: z.strictObject({
-      ok: z.boolean(),
-      result: z.unknown().optional(),
-      error: z
-        .strictObject({ code: z.string(), message: z.string() })
-        .optional(),
-    }),
-    annotations: {
-      /* hints */
-    },
-  },
-  async (params) => {
-    const structured = { ok: true, result: await doWork(params) };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(structured) }],
-      structuredContent: structured,
-    };
-  }
-);
-```
+- Tool names SHOULD be 1–128 chars and match: `[A-Za-z0-9_.-]+` (no spaces)
 
-### Output Schema Pattern
+## Tool Implementation Standard
 
-```typescript
+### Input/Output Schemas
+
+- Use `z.strictObject()` for all object schemas (reject unknown fields).
+- Add `.describe()` to every parameter for LLM guidance.
+- Add bounds: `.min()`/`.max()` for strings/arrays/numbers; use `z.enum([...])` for constrained values.
+
+### Output Shape (Recommended Baseline)
+
+```ts
 outputSchema: z.strictObject({
   ok: z.boolean(),
   result: z.unknown().optional(),
@@ -99,350 +87,140 @@ outputSchema: z.strictObject({
 
 ### Structured Content (Backward Compatibility)
 
-- When you return `structuredContent`, also include a JSON string in `content` for older clients
+When returning `structuredContent`, ALSO include a JSON string in `content`:
 
-### Annotations (Hints Only)
+- `content: [{ type: 'text', text: JSON.stringify(structured) }]`
 
-| Hint              | When True                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `readOnlyHint`    | Doesn't modify state                                                                                                                                                              |
-| `idempotentHint`  | Safe to retry: repeated calls with same arguments have the same _effect_ (read-only tools are often idempotent; avoid setting this if results are intentionally nondeterministic) |
-| `destructiveHint` | Irreversible changes (only makes sense for tools that modify state)                                                                                                               |
-| `openWorldHint`   | Calls external APIs                                                                                                                                                               |
+### Errors
 
-> Annotations are not a security boundary. Enforce authorization separately.
+- Prefer tool execution errors over protocol errors for invalid tool inputs.
+- On failure return `isError: true` in the tool result; do not throw uncaught exceptions.
 
-### Transport Rules
+### Canonical Tool Pattern
 
-- **Streamable HTTP** is recommended for remote servers; **stdio** is ideal for local/CLI use
-- **HTTP+SSE** is a legacy transport; only support it for backward compatibility
-- **stdio**: never write non-MCP data to stdout; use `console.error()` for logs
-- **Streamable HTTP security** (CVE-2025-66414):
-  - Use `createMcpExpressApp()` helper for automatic DNS rebinding protection
-  - Or use `hostHeaderValidation` middleware manually
-  - Validate `Origin` header (MUST per spec 2025-11-25). If `Origin` is present and invalid, respond with HTTP 403.
-  - Bind localhost for local use; require auth for remote use
-  - Use `MCP-Session-Id` header for stateful sessions (Node/Express lowercases request header names, so you’ll read it as `req.headers['mcp-session-id']`)
+```ts
+server.registerTool(
+  "tool_name",
+  {
+    title: "Human Title",
+    description:
+      "Clear, actionable LLM description (when to use it, what it returns)",
+    inputSchema: z.strictObject({
+      param: z.string().min(1).max(200).describe("Parameter description"),
+    }),
+    outputSchema: z.strictObject({
+      ok: z.boolean(),
+      result: z.unknown().optional(),
+      error: z
+        .strictObject({ code: z.string(), message: z.string() })
+        .optional(),
+    }),
+    annotations: { readOnlyHint: true, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const result = await doWork(params);
+      const structured = { ok: true, result };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structured) }],
+        structuredContent: structured,
+      };
+    } catch (err) {
+      const structured = {
+        ok: false,
+        error: { code: "E_FAILED", message: getErrorMessage(err) },
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structured) }],
+        structuredContent: structured,
+        isError: true,
+      };
+    }
+  },
+);
+```
 
-### Streamable HTTP (Spec 2025-11-25 Essentials)
+## Annotations (Hints Only)
+
+Annotations guide LLM behavior; they are not authorization.
+
+- `readOnlyHint`: does not modify state
+- `idempotentHint`: safe to retry with same args (avoid if intentionally nondeterministic)
+- `destructiveHint`: irreversible change
+- `openWorldHint`: external network/API calls
+
+## Transport Rules
+
+### Defaults
+
+- **Streamable HTTP**: recommended for remote servers.
+- **stdio**: ideal for local/CLI servers.
+- HTTP+SSE legacy transport: only for backward compatibility.
+
+### stdio Hygiene
+
+- Never write non-MCP output to **stdout** (it corrupts JSON-RPC).
+- Use `console.error()` or protocol logging.
+
+### Streamable HTTP Security (CVE-2025-66414)
+
+- Prefer `createMcpExpressApp({ host: 'localhost' })` for DNS rebinding protection.
+- Or use `hostHeaderValidation([...])`.
+- Validate `Origin` **if present**; if invalid → **HTTP 403**.
+- For stateful sessions, read header as `req.headers['mcp-session-id']` (Express lowercases).
+
+## Streamable HTTP (Spec 2025-11-25 Essentials)
 
 - MCP endpoint MUST support both `POST` and `GET`.
-  - `GET` MUST return `text/event-stream` or HTTP 405 (don’t leave it as 404).
-- Client `POST` MUST include `Accept` advertising both `application/json` and `text/event-stream`.
-- Session expiry: server MUST return HTTP 404 for expired `MCP-Session-Id`; client MUST start a new session by re-sending `initialize` (without a session id).
-- Protocol version header: clients MUST send `MCP-Protocol-Version: <negotiated-version>` on subsequent HTTP requests; invalid/unsupported MUST return HTTP 400.
-- SSE resumption: resuming always happens via `GET` + `Last-Event-ID` (even if the original stream was started by `POST`).
-- Multiple SSE streams: server MUST NOT broadcast the same JSON-RPC message over multiple streams.
+  - `GET` MUST serve `text/event-stream` or return **405** (not 404).
 
-### Authorization (HTTP; Optional but Common for Remote Servers)
+- JSON-RPC POST clients MUST send `Accept: application/json, text/event-stream`.
+- Expired session: server returns **404** for invalid/expired `MCP-Session-Id`; client must re-initialize without session id.
+- Clients MUST send `MCP-Protocol-Version: <negotiated>` on subsequent requests; invalid/unsupported → **400**.
+- SSE resume uses **GET + Last-Event-ID**.
+- Do not broadcast the same JSON-RPC message across multiple SSE streams.
 
-- STDIO servers SHOULD NOT implement HTTP auth flows; use environment-provided credentials.
-- HTTP servers implementing auth MUST support Protected Resource Metadata (RFC 9728) discovery via either:
-  - `WWW-Authenticate: Bearer resource_metadata="..."` (recommended when returning 401), or
+## Authorization (HTTP; Optional but Common)
+
+- stdio servers generally avoid HTTP auth flows; use environment-provided credentials.
+- If implementing auth, support Protected Resource Metadata (RFC 9728) discovery via:
+  - `WWW-Authenticate: Bearer resource_metadata="..."` (recommended on 401), or
   - `/.well-known/oauth-protected-resource[...]` fallback.
-- When responding with 401 challenges, servers SHOULD include `scope="..."` to guide least-privilege scope selection.
-- Token passthrough is forbidden: servers MUST NOT accept tokens not issued for the MCP server.
 
-### Tasks (Experimental)
+- Do not accept tokens not issued for this MCP server (no token passthrough).
 
-- If you support task-augmented requests, declare `capabilities.tasks` and only allow task augmentation where declared.
-- For tools, also honor `execution.taskSupport` (`required` | `optional` | `forbidden`).
-- Task cancellation uses `tasks/cancel` (do not use `notifications/cancelled` for task-augmented requests).
+## Tasks (Experimental)
 
-## Error Handling
-
-```typescript
-// Helper: extract message from unknown error
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string' && error.length > 0) return error;
-  return 'Unknown error';
-}
-
-// Tool handler pattern
-async (params): Promise<ToolResponse> => {
-  try {
-    const result = await doWork(params);
-    const structured = { ok: true, result };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(structured) }],
-      structuredContent: structured,
-    };
-  } catch (err) {
-    const structured = {
-      ok: false,
-      error: { code: 'E_FAILED', message: getErrorMessage(err) },
-    };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(structured) }],
-      structuredContent: structured,
-      isError: true,
-    };
-  }
-};
-```
+- If supported: declare `capabilities.tasks`.
+- Honor `execution.taskSupport` (`required|optional|forbidden`) for tools.
+- Task cancellation uses `tasks/cancel` (not `notifications/cancelled`).
 
 ## Capabilities & UX
 
-- **Prompts**: user-controlled; declare the prompts capability and validate prompt args
-- **Sampling**: only if the client declares sampling capability; keep a human in the loop
-- **Sampling tool use**: only if the client declares `sampling.tools`
-- **Elicitation**: only if the client declares elicitation capability; use URL mode for sensitive info
+- Prompts: declare capability and validate prompt args.
+- Sampling: only if client capability exists; keep a human in the loop; honor `sampling.tools`.
+- Elicitation: only if client capability exists; use URL-mode elicitation for sensitive info.
 
-### Capabilities Negotiation
+## Helpers (Recommended)
 
-```typescript
-// Check client capabilities before using advanced features
-if (server.server.createMessage) {
-  // Sampling is available
-  const response = await server.server.createMessage({ ... });
-}
+- Provide shared helpers in `src/lib/`:
+  - `getErrorMessage(error: unknown): string`
+  - `createToolResponse(structured)` (always sets both `content` and `structuredContent`)
+  - `createErrorResponse(code, message)` (sets `isError: true`)
 
-if (server.server.elicitInput) {
-  // Elicitation is available
-  const result = await server.server.elicitInput({ ... });
-}
-```
+## Testing & Verification
 
-## Security
+- Inspector:
+  - `npx @modelcontextprotocol/inspector node dist/index.js` (stdio)
+  - `npx @modelcontextprotocol/inspector http://localhost:3000/mcp` (HTTP)
 
-- **DNS rebinding (CVE-2025-66414)**: Use `createMcpExpressApp()` or `hostHeaderValidation` middleware for HTTP servers
-- Validate paths: resolve symlinks, check against allowed roots
-- Set limits: `.min()`, `.max()` on strings/arrays/numbers
-- Use `z.strictObject()` for all Zod object schemas to reject unknown fields
-- Use `AbortSignal.timeout()` on external calls
-- No `eval()`, `Function()`, or dynamic code
-- Secrets in environment variables only
+- Prefer `node:test` for unit tests; keep tests deterministic.
 
-## Patterns
+## Shutdown (Required)
 
-### Response Helpers
+Wire clean exit:
 
-```typescript
-// lib/tool_response.ts
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
-export function createToolResponse<T extends Record<string, unknown>>(
-  structuredContent: T
-): CallToolResult & { structuredContent: T } {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
-    structuredContent,
-  };
-}
-```
-
-### stdio Server
-
-```typescript
-import { createRequire } from 'node:module';
-
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
-
-const server = new McpServer(
-  { name: 'my-server', version: SERVER_VERSION },
-  { instructions: 'Usage for LLM', capabilities: { logging: {} } }
-);
-await server.connect(new StdioServerTransport());
-```
-
-### Streamable HTTP Server
-
-**Option 1: Stateless (recommended default; simplest)**
-
-Use this if you do not need session persistence, resumability, or server→client notifications.
-
-```typescript
-import { createRequire } from 'node:module';
-
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
-
-const server = new McpServer(
-  { name: 'my-server', version: SERVER_VERSION },
-  { instructions: 'Usage for LLM', capabilities: { logging: {} } }
-);
-
-// DNS rebinding protection auto-enabled for localhost
-const app = createMcpExpressApp({ host: 'localhost' });
-
-app.post('/mcp', async (req, res) => {
-  const transport = new StreamableHTTPServerTransport({
-    enableJsonResponse: true,
-  });
-  res.on('close', () => transport.close());
-  await server.connect(transport);
-  await transport.handleRequest(req, res, req.body);
-});
-
-app.listen(3000);
-```
-
-**Option 2: Stateful sessions (advanced; requires session reuse + GET/DELETE)**
-
-If you enable sessions (`sessionIdGenerator`), you must reuse the same transport for the lifetime of that session and route `POST`, `GET`, and `DELETE` to it. This is the pattern used by the upstream SDK examples.
-
-Key requirements:
-
-- Validate `Origin` (if present) and return HTTP 403 when invalid.
-- Read the session header as `req.headers['mcp-session-id']` and treat it as case-insensitive on the wire (spec name: `MCP-Session-Id`).
-- Implement `DELETE` to close server-side session state.
-
-```typescript
-import { createRequire } from 'node:module';
-
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-
-import express from 'express';
-
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
-
-const server = new McpServer(
-  { name: 'my-server', version: SERVER_VERSION },
-  { instructions: 'Usage for LLM', capabilities: { logging: {} } }
-);
-
-const app = express();
-app.use(express.json());
-app.use(hostHeaderValidation(['localhost', '127.0.0.1'])); // DNS rebinding protection
-
-const transports = new Map<string, StreamableHTTPServerTransport>();
-
-app.all('/mcp', async (req, res) => {
-  const origin = req.headers.origin;
-  if (typeof origin === 'string' && origin.length > 0) {
-    // Enforce an allow-list appropriate for your deployment.
-    const isAllowedOrigin = origin === 'http://localhost:3000';
-    if (!isAllowedOrigin) {
-      res.status(403).end();
-      return;
-    }
-  }
-
-  const sessionId =
-    typeof req.headers['mcp-session-id'] === 'string'
-      ? req.headers['mcp-session-id']
-      : undefined;
-  let transport = sessionId ? transports.get(sessionId) : undefined;
-
-  if (!transport) {
-    transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
-      enableJsonResponse: true,
-    });
-    await server.connect(transport);
-
-    // Once initialized, the transport will have a session ID the client must send on future requests.
-    // Persist the transport by its session ID.
-    transport.onsessioninitialized = (newSessionId) => {
-      transports.set(newSessionId, transport!);
-    };
-    transport.onsessionclosed = (closedSessionId) => {
-      transports.delete(closedSessionId);
-    };
-  }
-
-  res.on('close', () => transport!.close());
-  const body = req.method === 'POST' ? req.body : undefined;
-  await transport.handleRequest(req, res, body);
-});
-
-app.listen(3000);
-```
-
-### Dynamic Resource
-
-```typescript
-import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-
-server.registerResource(
-  'user',
-  new ResourceTemplate('users://{userId}', {
-    list: undefined,
-    complete: { userId: (p) => ids.filter((id) => id.startsWith(p)) },
-  }),
-  { title: 'User', mimeType: 'application/json' },
-  async (uri, { userId }) => ({
-    contents: [{ uri: uri.href, text: JSON.stringify(data) }],
-  })
-);
-```
-
-### Prompt with Completion
-
-```typescript
-import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
-
-server.registerPrompt(
-  'review',
-  {
-    argsSchema: {
-      lang: completable(z.enum(['ts', 'py']), (p) =>
-        ['ts', 'py'].filter((l) => l.startsWith(p))
-      ),
-      code: z.string(),
-    },
-  },
-  ({ lang, code }) => ({
-    messages: [
-      {
-        role: 'user',
-        content: { type: 'text', text: `Review ${lang}:\n${code}` },
-      },
-    ],
-  })
-);
-```
-
-### LLM Sampling
-
-```typescript
-const response = await server.server.createMessage({
-  messages: [{ role: 'user', content: { type: 'text', text: 'Summarize' } }],
-  maxTokens: 500,
-});
-```
-
-### User Elicitation
-
-```typescript
-const result = await server.server.elicitInput({
-  message: 'Confirm?',
-  requestedSchema: {
-    type: 'object',
-    properties: { confirm: { type: 'boolean' } },
-    required: ['confirm'],
-  },
-});
-if (result.action === 'accept' && result.content?.confirm) {
-  /* proceed */
-}
-```
-
-## Testing
-
-```bash
-npx @modelcontextprotocol/inspector node dist/index.js        # stdio
-npx @modelcontextprotocol/inspector http://localhost:3000/mcp # HTTP
-```
-
-## Shutdown
-
-```typescript
-process.on('SIGTERM', () => process.exit(0));
-process.on('SIGINT', () => process.exit(0));
+```ts
+process.on("SIGTERM", () => process.exit(0));
+process.on("SIGINT", () => process.exit(0));
 ```

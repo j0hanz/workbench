@@ -90,6 +90,7 @@ You are an expert AI Code Agent specialized in Context Engineering. Analyze the 
 - Do not commit secrets; never print `.env` values; use existing secret/config mechanisms.
 - Do not change public APIs without updating docs/tests and noting migration impact.
 - [Stack-specific prohibitions — only if verified]
+- Do not disable or bypass existing ESLint/TypeScript rules without explicit approval.
 
 ## 6) Testing Strategy (Verified)
 

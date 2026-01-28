@@ -1,127 +1,103 @@
-# Generate "Agent Instructions" (System Prompt) for MCP Server
+# Generate MCP Agent Instructions
 
-**Role:** You are an expert **MCP Architect** and **Agentic Workflow Designer**.
-**Goal:** Create a high-signal `instructions.md` file that teaches an AI Agent how to use this specific MCP server effectively.
-**Context:** This file acts as a "User Manual" for the Agent, bridging the gap between raw JSON schemas and actual problem-solving.
+You are an expert MCP Architect and Agentic Workflow Designer. Your task is to generate **Agent Instructions** for THIS MCP server.
 
----
+## Objective
 
-## 🧠 Phase 1: Forensic Discovery (The "What")
+Create a high-signal **concise (<2KB)** `instructions.md` that teaches an AI agent how to use this specific MCP server effectively—bridging raw tool schemas to practical workflows—AND provide the exact code snippet needed to expose these instructions in the server implementation.
 
-Before writing, scan the workspace (`package.json`, `pyproject.toml`, `src/`, `go.mod`) to answer:
+## Hard Constraints
 
-1.  **Runtime Detection:** Is this Node.js (TS/JS), Python, or Go?
-2.  **SDK Framework:** Is it the low-level SDK, `McpServer` (TS High-Level), or `FastMCP` (Python)?
-3.  **Tool Inventory:** List every tool. Identify "Read" (safe) vs. "Write" (side-effects).
-4.  **Implicit Workflows:** Look at `test/` or `examples/`. How do humans chain these tools?
+- Do **not** invent tools, workflows, file paths, or commands.
+- Only include what you can **verify from the repository**; if unsure, omit or label **UNVERIFIED**.
+- Separate **Read** tools (safe) vs **Write** tools (side effects). If no write tools exist, do not describe write workflows.
+- Never guess IDs or resource URIs—always list/search first.
+- Keep `instructions.md` under **2KB** (tight, high-signal).
 
----
+## Phase 1: Forensic Discovery (Repository-Backed)
 
-## 📝 Phase 2: Draft `instructions.md` (The "Manual")
+Scan the workspace to determine (with file evidence):
 
-Generate a **concise (<2KB)** Markdown file using this exact structure.
+1. **Runtime**: Node (TS/JS) vs Python vs Go
+2. **SDK framework**: low-level SDK vs TypeScript `McpServer` (high-level) vs Python `FastMCP`
+3. **Tool inventory**: list every tool; classify each as **Read** or **Write**
+4. **Implicit workflows**: inspect `examples/`, `test/`, docs, or scripts to infer how humans chain tools
 
-### Template Structure
+Record evidence as file references (e.g., `package.json`, `src/server.ts`, `examples/*`).
+
+## Phase 2: Write `instructions.md` (Return as Markdown)
+
+Generate a concise Markdown file using EXACT structure below (fill with verified details only):
 
 ```markdown
 # {Server Name} Instructions
 
-> **Guidance for the Agent:** These instructions are available as a resource (`internal://instructions`) or prompt (`get-help`). Load them when you are confused about tool usage.
+> Guidance for the Agent: These instructions are available as a resource (`internal://instructions`) or prompt (`get-help`). Load them when you are unsure about tool usage.
 
 ## 1. Core Capability
 
 - **Domain:** [One sentence summary]
-- **Primary Resources:** [List key data types, e.g., `Tasks`, `Logs`, `DatabaseRows`]
+- **Primary Resources:** [Key data types the server deals with]
 
 ## 2. The "Golden Path" Workflows (Critical)
 
-_Describe the standard order of operations. Do not assume the agent knows this._
+_Describe the standard order of operations using ONLY tools that exist._
 
-### Workflow A: [e.g., "Diagnosing an Error"]
+### Workflow A: [Name]
 
-1. Call `list_errors` to find recent crashes.
-2. Call `get_error_logs` using the `id` from step 1.
-3. Call `analyze_stacktrace` (optional).
-   > **Constraint:** Never guess IDs. Always list first.
+1. Call `{tool}` ...
+2. Call `{tool}` ...
+   > Constraint: Never guess IDs/URIs. Always list/search first.
 
-### Workflow B: [e.g., "Deploying a Fix"]
+### Workflow B: [Name] (Only if supported by tools)
 
-1. Call `validate_config`.
-2. Call `deploy` only if validation passes.
+1. ...
 
-## 3. Tool Nuances & "Gotchas"
+## 3. Tool Nuances & Gotchas
 
-_Do NOT repeat the JSON Schema. Focus on behavior._
+_Do NOT repeat JSON schema. Focus on behavior and pitfalls._
 
-- **`{tool_name}`**:
-  - **Latency:** "This tool takes ~30s. Do not timeout immediately."
-  - **Side Effects:** "Sends a real email. Ask user confirmation first."
-  - **Input Formats:** "Dates must be ISO-8601 (YYYY-MM-DD)."
+- **`{tool_name}`**
+  - **Purpose:** [1 line]
+  - **Inputs:** [Only key constraints: formats, required fields, limits]
+  - **Side effects:** [None | Describe impact; require user confirmation if destructive]
+  - **Latency/limits:** [If implied by code/tests; otherwise omit]
+  - **Common failure modes:** [What errors look like + what to do]
 
 ## 4. Error Handling Strategy
 
-- "If you receive `404 Not Found`, try searching with a wildcard `*`."
-- "If `rate_limited`, wait 5 seconds before retrying."
+- [Repo-verified retry/backoff or common errors]
+- [Fallback steps (search/list, narrower queries, etc.)]
 ```
 
----
+## Phase 3: Integration Logic (Choose One; Repo-Detected)
 
-## 🔌 Phase 3: Integration Logic (The "How")
+Based on detected runtime/framework, output the exact code snippet to expose `instructions.md`:
 
-Determine the best way to expose this file based on the **Runtime detected in Phase 1**. Choose ONE path:
+### A) TypeScript (`@modelcontextprotocol/sdk`)
 
-### Path A: TypeScript (`@modelcontextprotocol/sdk`)
+- Expose as Resource: `internal://instructions` with `text/markdown`
+- Use repo conventions for file paths (root `instructions.md` vs `src/instructions.md`)
 
-_Implement a fixed Resource._
+### B) Python (`FastMCP`)
 
-- **URI:** `internal://instructions`
-- **Mime:** `text/markdown`
-- **Implementation:**
+- Use constructor injection: `FastMCP(..., instructions=open(...).read())`
 
-```typescript
-// Add this to your server setup
-server.resource(
-  'internal://instructions',
-  new ResourceTemplate('internal://instructions', { list: undefined }),
-  async (uri) => ({
-    contents: [
-      {
-        uri: uri.href,
-        text: fs.readFileSync(
-          path.join(__dirname, '../instructions.md'),
-          'utf-8'
-        ),
-        mimeType: 'text/markdown',
-      },
-    ],
-  })
-);
-```
+### C) Python (Low-Level SDK)
 
-### Path B: Python (`FastMCP`)
+- Implement resource listing + reader for `internal://instructions`
 
-_Use the constructor injection._
+Do not include code for paths that do not match the repo’s runtime/framework.
 
-- **Implementation:**
+## Phase 4: Final Output (STRICT)
 
-```python
-mcp = FastMCP("my-server", instructions=open("instructions.md").read())
+Return ONLY the following, in order:
 
-```
-
-### Path C: Python (Low-Level / Standard SDK)
-
-_Implement a Resource reader._
-
-- **URI:** `internal://instructions`
-- **Implementation:** Use the `@server.list_resources()` and `@server.read_resource()` decorators to return the file content.
-
----
-
-## ✅ Phase 4: Final Output
-
-1. **The File:** A complete `src/instructions.md` (or root `instructions.md` depending on convention).
-2. **The Code:** The exact code snippet to expose this file as a **Resource** or **System Prompt** in the current codebase.
-3. **Verification:** A quick checklist confirming you didn't just dump JSON schemas into the markdown.
-
-**Constraint:** Do not invent tools. If the server has no "Write" tools, do not invent a "Deployment" workflow.
+1. A single Markdown code block containing the full contents of `instructions.md` (placed at the verified repo-appropriate path; mention the path in the first heading or a comment line).
+2. A single code block with the exact integration snippet for this repo.
+3. A short verification checklist (3–6 bullets) confirming:
+   - No invented tools/workflows
+   - <2KB markdown
+   - Read vs Write classified
+   - Evidence-based commands/URIs
+   - No schema dumping

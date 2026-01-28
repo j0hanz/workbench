@@ -1,216 +1,145 @@
 # MCP Server Protocol Audit & Code Review
 
-> **SDK Context (Jan 2026):** This audit targets **TypeScript SDK v1.x** (`@modelcontextprotocol/sdk`) as the production-ready standard. SDK v2 is pre-alpha (stable Q1 2026) and splits into `@modelcontextprotocol/server` and `@modelcontextprotocol/client`. Use v1.x for production servers. For Python SDK or raw JSON-RPC implementations, adapt checks accordingly.
+You are an expert Model Context Protocol (MCP) Systems Engineer. Audit the provided MCP server codebase for **protocol compliance**, **transport integrity**, **security**, and **robust integration patterns**.
 
-You are an expert Model Context Protocol (MCP) Systems Engineer. Your task is to audit the provided MCP server codebase for protocol compliance, transport stability, and robust integration patterns.
+## Ground Rules
 
-## 1. Context Analysis (SDK vs. Raw)
+- Do not invent file paths, tools, transports, or capabilities. Cite evidence from the repo.
+- Every finding MUST include: **Evidence** (file + symbol + excerpt/description) → **Fix** (concrete) → **Verify** (measurable).
+- Prioritize crashers/security first; avoid micro-optimizations before correctness.
 
-- **Detection:** Determine if the server uses an official SDK (TypeScript/Python) or a raw JSON-RPC implementation.
-  - _If SDK:_ Audit the configuration of the `Server` instance and `capabilities` declaration.
-  - _If Raw:_ Strictly validate JSON-RPC 2.0 compliance (id, method, params) and handshake logic.
+## Phase 0: Detect Implementation Style
 
-### 1.1 TypeScript SDK Essentials (If Applicable)
+Determine (with evidence) whether the server is:
 
-- **Shebang (CLI Servers):** Verify `#!/usr/bin/env node` is the **first line** in entrypoint files (e.g., `src/index.ts`).
-  - _Critical:_ Missing shebang causes runtime failures when executed via `node dist/index.js` or `package.json` bin.
-- **Import Extensions:** All local imports MUST use `.js` extensions for NodeNext module resolution.
-  - _Example:_ `import { helper } from './lib.js'` (not `./lib` or `./lib.ts`).
-- **Named Exports Only:** No default exports; use `export { MyClass }` pattern.
-- **Type-Only Imports:** Use `import type { X }` or inline `import { type X }` to avoid runtime overhead.
-- **Strict TypeScript:** Enable `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules` in `tsconfig.json`.
+- **TypeScript SDK (`@modelcontextprotocol/sdk`)**
+- **Python SDK**
+- **Raw JSON-RPC 2.0**
+  Then audit accordingly.
 
-## 2. Transport & Hygiene (CRITICAL)
+## 1) SDK vs Raw JSON-RPC Audit
 
-- **Stdout Pollution (The "Death Rule" - Stdio Servers):** Flag _any_ instance of `print`, `console.log`, or `fmt.Println` to stdout in **stdio servers**.
-  - _Why Critical:_ Stdio transport uses stdout for JSON-RPC messages; any non-protocol output crashes the client.
-  - _Correction (Stdio):_ Replace with `console.error()` (stderr) OR `server.sendLoggingMessage()` (protocol logging).
-  - _HTTP Servers:_ Still flag `console.log()` but less critical; recommend `server.sendLoggingMessage()` for observability.
-- **Connection Lifecycle:** Check how the transport is attached (`StdioServerTransport` vs `StreamableHTTPServerTransport`). Ensure clean shutdown handling on `SIGINT`/`SIGTERM`.
-  - _Pattern:_ `process.on('SIGTERM', () => process.exit(0))`
+### 1.1 If TypeScript SDK v1.x (`@modelcontextprotocol/sdk`)
 
-## 2.1 Lifecycle & Capability Negotiation (CRITICAL)
+Verify with evidence:
 
-- **Initialization Ordering:** Ensure `initialize` is the first request and `notifications/initialized` is sent before normal operations.
-  - Client **SHOULD NOT** send requests other than `ping` before `initialize` response.
-  - Server **SHOULD NOT** send requests other than `ping`/logging before `notifications/initialized`.
-- **Version Negotiation:** Validate protocol version compatibility and disconnection on mismatch.
-- **Capabilities:** Verify declared capabilities match implemented features, including `listChanged` and `subscribe` sub-capabilities.
-- **Operational Guardrails:** Ensure both sides only use negotiated capabilities during the session.
+- Server creation + `capabilities` declaration match implemented handlers
+- CLI entrypoint has shebang as first line (if distributed as CLI): `#!/usr/bin/env node`
+- NodeNext import hygiene: local imports use `.js` extensions in emitted code paths
+- Prefer named exports; avoid default exports unless repo convention explicitly uses them
+- Type-only imports used where applicable (`import type { ... }`)
+- `tsconfig.json` strictness: `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules`, and rationale for any deviations
 
-### 2.2 HTTP Transport Specifics (Streamable HTTP)
+### 1.2 If Raw JSON-RPC 2.0
 
-- **Stateless vs. Stateful Sessions:**
-  - _Stateless (Recommended):_ New `StreamableHTTPServerTransport` per request; no session reuse. Simpler and more reliable.
-  - _Stateful:_ Requires session management via `sessionIdGenerator`, persisting transports by `MCP-Session-Id`, and routing GET/POST/DELETE.
-- **DNS Rebinding Protection:** Use `createMcpExpressApp({ host: 'localhost' })` or `hostHeaderValidation` middleware (see CVE-2025-66414).
-- **Session Header Handling:** Read `req.headers['mcp-session-id']` (Express lowercases it; spec name is `MCP-Session-Id`).
-- **Origin Validation (Spec 2025-11-25):** If `Origin` header present and invalid, respond with HTTP 403. Required for remote servers.
-- **Endpoint Requirements:** `POST` for requests, `GET` for SSE resumption (with `Last-Event-ID`), `DELETE` for session cleanup.
+Validate:
 
-## 3. Tool Definition & Schema
+- Request shape: `jsonrpc:"2.0"`, `id` for requests, no `id` for notifications
+- Response shape: matching `id`, either `result` or `error` (never both)
+- Error codes: `-32601` (method), `-32602` (params), `-32603` (internal)
+- Proper initialize/initialized ordering and capability negotiation
 
-- **Input Schemas:** Verify that all Tools define explicit, non-ambiguous JSON Schemas (Draft 07).
-  - _Check:_ Are strictly typed libraries used (e.g., `zod` in TS, `pydantic` in Python)?
-  - _Check:_ Are descriptions descriptive enough for an LLM to understand _when_ to use the tool?
-- **Zod v4 Requirements (TypeScript SDK):**
-  - Use `z.strictObject()` (not `z.object()`) to reject unknown fields (security).
-  - Add `.describe()` to all parameters for LLM guidance.
-  - Set limits: `.min()`, `.max()` on strings/arrays/numbers to prevent abuse.
-  - Validate enums with `z.enum(['val1', 'val2'])` for constrained inputs.
-- **Structured Content Pattern (Backward Compatibility):**
-  - Tools MUST return both `content` (JSON string in text block) AND `structuredContent` (typed object).
-  - _Why:_ Old clients only read `content`; new clients prefer `structuredContent`. Return both for compatibility.
-  - _Example:_ `{ content: [{type: 'text', text: JSON.stringify(data)}], structuredContent: data }`
-- **Error Propagation:** Ensure tools return `isError: true` in the `CallToolResult` rather than throwing uncaught exceptions.
+## 2) Transport Integrity & Hygiene (CRITICAL)
 
-### 3.2 Annotations Semantics (Hints Only)
+### 2.1 Stdout Pollution (Death Rule for Stdio)
 
-- **Not Security Boundaries:** Annotations (`readOnlyHint`, `idempotentHint`, `destructiveHint`, `openWorldHint`) are **hints for LLMs**, not enforcement mechanisms.
-  - _readOnlyHint:_ Tool doesn't modify state (e.g., read file, list resources).
-  - _idempotentHint:_ Safe to retry; repeated calls with same args have same effect (read-only tools are often idempotent).
-  - _destructiveHint:_ Irreversible changes (e.g., delete file, drop database).
-  - _openWorldHint:_ Calls external APIs (network boundary crossing).
-- **Authorization Separation:** Enforce permissions separately; don't assume annotations provide access control.
+If using stdio transport:
 
-## 3.1 Completions Utility (If Supported)
+- Flag ANY stdout writes (`console.log`, `process.stdout.write`, `print`, `fmt.Println`)
+- Require stderr/protocol logging instead: `console.error` or MCP logging messages
+  If HTTP transport:
+- Still flag unstructured logs; recommend protocol logging where supported
 
-- **Capability Declaration:** If `completion/complete` is implemented, server **MUST** declare `capabilities.completions`.
-- **Input Validation:** Validate `ref` type (`ref/prompt` or `ref/resource`) and `context.arguments` for multi-arg prompts/templates.
-- **Result Limits:** Enforce max 100 completion values, and include `total`/`hasMore` when applicable.
-- **Error Codes:** Use JSON-RPC errors: `-32601` unsupported, `-32602` invalid params, `-32603` internal.
-- **Security:** Rate limit completion requests and prevent sensitive data leakage via suggestions.
+### 2.2 Connection Lifecycle
 
-## 4. Resource & URI Patterns
+- Confirm transport used (`StdioServerTransport` vs `StreamableHTTPServerTransport` or other)
+- Verify clean shutdown: `SIGINT`/`SIGTERM` handlers, transport close, server disconnect
 
-- **URI Consistency:** Inspect `ListResources` and `ReadResource`.
-  - _Rule:_ Do resource URIs follow a consistent scheme (e.g., `custom-scheme://internal/id`)?
-  - _Rule:_ Does the `ReadResource` handler validate that the requested URI matches the expected pattern?
-- **Subscription Support:** If the data changes, does the server implement `notifications/resources/updated`?
+### 2.3 Initialization & Capability Negotiation (CRITICAL)
 
-## 5. Security & Isolation
+Verify:
 
-- **Path Traversal:** If the server accesses the filesystem, verify it checks against a permitted `root` directory.
-  - **Symlink Resolution (Critical):** Check for `fs.realpath()` usage to resolve symlinks BEFORE validation.
-  - _Why:_ Attackers can bypass allow-list checks using symlinks to external directories.
-  - _Pattern:_ `const realPath = await fs.realpath(userPath); validateAgainstAllowList(realPath);`
-- **Input Sanitization:** Ensure tool arguments are validated _before_ being passed to shell commands or database queries (Injection risks).
+- `initialize` handled first; `notifications/initialized` ordering respected
+- Version negotiation and disconnect on mismatch
+- Declared capabilities match actual implementation (including `listChanged`, `subscribe`)
+- Session uses ONLY negotiated capabilities
 
-### 5.1 DNS Rebinding (CVE-2025-66414 - HTTP Servers Only)
+### 2.4 Streamable HTTP Specifics (If Present)
 
-- **Automatic Protection:** Check if server uses `createMcpExpressApp({ host: 'localhost' })` helper (includes DNS rebinding protection).
-- **Manual Validation:** If not using helper, verify `hostHeaderValidation` middleware is applied.
-  - _Example:_ `app.use(hostHeaderValidation(['localhost', '127.0.0.1']))`
-- **Origin Header Validation:** Per spec 2025-11-25, servers MUST validate `Origin` header if present; respond HTTP 403 if invalid.
-- **Localhost Binding:** For local servers, verify socket binds to `localhost` (not `0.0.0.0`).
+Determine stateless vs stateful (with evidence):
 
-## 6. Advanced Patterns (Bonus)
+- Stateless recommended: new transport per request, no session reuse
+- Stateful: correct sessionId + routing for POST/GET (SSE resume)/DELETE cleanup
+  Security/hardening:
+- DNS rebinding protection (`createMcpExpressApp({ host: 'localhost' })` or host header validation)
+- Session header handling (Express lowercases): `req.headers['mcp-session-id']`
+- Origin validation: if `Origin` present and invalid → 403 (where applicable)
+- Endpoint requirements: POST requests, GET SSE resumption (`Last-Event-ID`), DELETE cleanup
 
-- **Progress Reporting:** For long-running tools, does the server use validation tokens and `notifications/progress`?
-- **Prompts:** If the server exposes Prompts (`GetPrompt`), are arguments correctly mapped and validated?
+## 3) Tools: Definitions, Schemas, Results
 
-## 6.1 Timeouts & Cancellation
+### 3.1 Tool Schemas & Validation
 
-- **Request Timeouts:** Ensure per-request timeouts exist and are configurable.
-- **Cancellation:** On timeout, sender **SHOULD** send a cancellation notification and stop waiting.
-- **Progress Interaction:** Implementations **MAY** reset timeout on progress, but **SHOULD** enforce a maximum timeout.
+Verify for every tool:
 
-## 6.2 JSON-RPC Hygiene
+- Explicit JSON Schema (Draft 07) or typed validator (e.g., Zod/Pydantic) with strict unknown-field rejection where possible
+- Descriptions that help an LLM choose the tool correctly
+- Input constraints: min/max/enum where abuse is possible
 
-- **Request/Response Shape:** Validate JSON-RPC 2.0 correctness: requests include `id`, notifications omit `id`, responses match result/error schemas.
+### 3.2 Tool Results & Error Propagation
 
-### 6.3 Dynamic Tools (Advanced Pattern)
+Verify:
 
-- **Runtime Tool Mutations:** If server modifies tools at runtime, verify correct usage of:
-  - `tool.enable()` / `tool.disable()` - Show/hide tools dynamically.
-  - `tool.update({ inputSchema: newSchema })` - Modify tool schemas.
-  - `tool.remove()` - Permanently remove tool.
-- **Notification Requirement:** All mutations MUST trigger `notifications/tools/list_changed` to inform client.
-- **Use Case:** Permission upgrades, feature flags, conditional tool availability.
+- Tools return both:
+  - `content` (text block; include JSON string when returning structured data)
+  - `structuredContent` (typed object) for newer clients
+- Errors: return `isError: true` in result; avoid uncaught throws
+- Logging: use protocol logging when available; avoid stdout
 
-## Output Format
+### 3.3 Annotations Semantics (Hints Only)
 
-1.  **Transport Integrity:** (Pass/Fail) - specific status on Stdout usage (differentiate stdio vs HTTP).
-2.  **Critical Issues:** Security risks or protocol violations that will crash the client.
-3.  **Optimization Tips:** Suggestions to use native Protocol Logging or Progress notifications.
-4.  **Refactoring Plan:** Code snippets to fix identified issues using TypeScript SDK v1.x best practices.
+- Treat annotations (`readOnlyHint`, `idempotentHint`, `destructiveHint`, `openWorldHint`) as guidance, not authorization
+- Verify enforcement is implemented separately if needed
 
-### Example Refactoring Patterns (TypeScript SDK)
+### 3.4 Completions (If Implemented)
 
-**Correct Tool Registration:**
+If `completion/complete` exists:
 
-```typescript
-server.registerTool(
-  'read-file',
-  {
-    title: 'Read File',
-    description:
-      'Read text file contents. Only works within allowed directories.',
-    inputSchema: z.strictObject({
-      path: z.string().min(1).max(4096).describe('File path to read'),
-    }),
-    outputSchema: z.strictObject({
-      ok: z.boolean(),
-      result: z.object({ content: z.string() }).optional(),
-      error: z.object({ code: z.string(), message: z.string() }).optional(),
-    }),
-    annotations: { readOnlyHint: true },
-  },
-  async ({ path }) => {
-    try {
-      const validPath = await validatePath(path); // fs.realpath + allow-list check
-      const content = await fs.readFile(validPath, 'utf-8');
-      const structured = { ok: true, result: { content } };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(structured) }],
-        structuredContent: structured,
-      };
-    } catch (err) {
-      const structured = {
-        ok: false,
-        error: { code: 'E_READ_FAILED', message: String(err) },
-      };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(structured) }],
-        structuredContent: structured,
-        isError: true,
-      };
-    }
-  }
-);
-```
+- Capability declared correctly
+- Input validation for refs + arguments
+- Result limits (<=100) + pagination fields when applicable
+- Rate limiting / sensitive leakage protections
 
-**Stdio Transport (Local/CLI):**
+## 4) Resources & URI Patterns
 
-```typescript
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+Audit:
 
-const server = new McpServer(
-  { name: 'my-server', version: '1.0.0' },
-  { instructions: 'Usage for LLM', capabilities: { logging: {}, tools: {} } }
-);
+- Consistent URI scheme for resources
+- `ReadResource` validates URI patterns (reject unexpected forms)
+- If resources change, verify `notifications/resources/updated` (only if supported by capabilities)
 
-await server.connect(new StdioServerTransport());
-console.error('Server started'); // Use stderr, never stdout
-```
+## 5) Security & Isolation
 
-**HTTP Transport (Stateless):**
+Verify:
 
-```typescript
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+- Path traversal protections for any filesystem access
+- **Symlink resolution** prior to allow-list checks (`realpath`-style)
+- Sanitization before shell/db execution (injection risk)
+- HTTP-only: DNS rebinding mitigations and localhost binding when intended
 
-const app = createMcpExpressApp({ host: 'localhost' }); // DNS rebinding protection
+## 6) Advanced Reliability (Bonus)
 
-app.post('/mcp', async (req, res) => {
-  const transport = new StreamableHTTPServerTransport({
-    enableJsonResponse: true,
-  });
-  res.on('close', () => transport.close());
-  await server.connect(transport);
-  await transport.handleRequest(req, res, req.body);
-});
+- Progress reporting for long-running tools (`notifications/progress`) where applicable
+- Timeouts and cancellation behavior; maximum timeout enforcement
+- Dynamic tool mutation correctness (enable/disable/update/remove) + `notifications/tools/list_changed` if used
 
-app.listen(3000);
-```
+## Required Output Format
+
+Produce a review with these sections (each finding: Evidence → Fix → Verify):
+
+1. **Transport Integrity:** Pass/Fail (differentiate stdio vs HTTP; include stdout findings)
+2. **Critical Issues:** Protocol violations/security risks/client crashers (highest priority)
+3. **Optimization Tips:** Logging/progress/ergonomics improvements grounded in repo patterns
+4. **Refactoring Plan:** Prioritized steps + minimal code snippets aligned to TypeScript SDK v1.x (or detected runtime)
+
+Include code snippets ONLY for fixes that match the detected runtime/framework and repository conventions.

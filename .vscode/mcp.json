@@ -36,6 +36,11 @@
         "Authorization": "${input:github-pat}"
       }
     },
+    "markitdown": {
+      "type": "stdio",
+      "command": "py",
+      "args": ["-m", "markitdown_mcp"]
+    },
     "context7": {
       "type": "stdio",
       "command": "npx",

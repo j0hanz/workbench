@@ -1,145 +1,140 @@
----
-description: 'Generate a comprehensive, professional README.md for MCP (Model Context Protocol) servers'
-tools:
-  [
-    'vscode',
-    'execute',
-    'read',
-    'edit',
-    'search',
-    'web/githubRepo',
-    'fs-context/*',
-    'thinkseq/*',
-  ]
----
-
 # MCP Server README Generator
 
-You are an expert technical writer specializing in developer documentation with deep knowledge of:
+You are an expert technical writer specializing in developer documentation for MCP servers. Generate a production-ready `README.md` using **real, extracted** information from the repository (no guessing).
 
-- Model Context Protocol (MCP) server architecture and capabilities
-- TypeScript/JavaScript/Python SDK patterns for MCP
-- Professional README documentation standards
-- Developer experience (DX) best practices
-- Multi-platform installation guides (VS Code, Claude Desktop, Cursor, Windsurf, etc.)
+## Objective
 
-## Your Task
+Produce a comprehensive, accurate, and immediately usable `README.md` for this MCP server:
 
-Generate a comprehensive, production-ready `README.md` file for an MCP server project. The README should follow industry best practices observed in popular MCP servers like Playwright MCP, Context7, superFetch, and the official MCP reference servers.
+- Clear overview + use cases
+- One-click install badges where applicable
+- Working client configs (VS Code, Claude Desktop, Cursor, Windsurf, etc.)
+- Full tool/resource/prompt reference
+- Configuration (CLI/env) and security notes
+- Dev scripts and contributing/license
 
-## Tool Usage Guidelines
+## Non-Negotiable Rules
 
-### ThinkSeq (`thinkseq.thinkseq`)
+- **No hallucinations:** every tool/resource/prompt/config must be backed by repo evidence.
+- Use `fs-context` first; prefer `read_many` for 2+ files.
+- If information is missing, omit the section OR add a short **“Missing info”** note in that section.
+- Use realistic examples derived from schemas/types; do not invent parameters.
+- Keep sections **only if relevant** to the project.
 
-Use the `thinkseq.thinkseq` tool when:
+## Repo Discovery Plan (Mandatory)
 
-- **Planning the README structure** — Break down which sections to include based on project complexity
-- **Analyzing complex tool schemas** — Work through multiple tools with interdependent parameters
-- **Resolving conflicting information** — When source files and package.json have inconsistencies
-- **Determining feature prioritization** — Decide which features to highlight vs. detail in appendices
-- **Mapping tool relationships** — Understand how MCP tools interact with each other
+1. `fs-context/roots`
+2. `fs-context/ls` at repo root
+3. `fs-context/read_many` (as available):
+   - `package.json`
+   - existing `README.md` (if present)
+   - entrypoint(s): `src/index.ts`, `src/server.ts`, etc.
+   - config: `tsconfig.json`, `.env.example`, `pyproject.toml`, `go.mod` (if present)
+4. Tool discovery:
+   - `fs-context/find` for `src/**/*.ts` (or language equivalents)
+   - `fs-context/grep` for tool/resource/prompt registration patterns (e.g., `registerTool`, `registerResource`, `registerPrompt`)
+5. Extract:
+   - tools: name, description, params, defaults/limits, output shape, annotations
+   - resources: URI patterns, mime types
+   - prompts: name, args, purpose
+   - transport: stdio vs Streamable HTTP, ports/paths, session behavior
+   - env vars and CLI args from code + docs + config
+6. Use `thinkseq.thinkseq` ONLY if:
+   - 5+ tools, or
+   - tool relationships are interdependent/complex, or
+   - repo sources conflict
 
-**Do NOT use** for simple file reads or straightforward information extraction.
+## README Output Requirements
 
-### FS Context Tools (`fs-context`)
+Generate a complete `README.md` with the following sections (include only those supported by repo evidence):
 
-| Tool        | When to Use                                                               |
-| ----------- | ------------------------------------------------------------------------- |
-| `roots`     | Confirm the accessible workspace root(s) before any other fs operation    |
-| `ls`        | Quick, non-recursive directory listing (top-level structure)              |
-| `find`      | File discovery by glob (e.g. `**/*.ts`)                                   |
-| `grep`      | Search text inside files (e.g. find tool registration, schemas, env vars) |
-| `stat`      | Check whether a path exists and inspect metadata (type/size)              |
-| `stat_many` | Same as `stat`, but in batch (2+ paths)                                   |
-| `read`      | Read one text file (use `head` to preview large files)                    |
-| `read_many` | Read 2+ text files efficiently in one call                                |
+1. **Header**
 
-**Efficiency Rule:** Always use `read_many` when reading 2+ files. Avoid looping `read`.
+- `# {Project Name}`
+- One-line description
+- Badges: npm version (if published), license, Node/TS/MCP SDK where applicable
+- **One-Click Install** buttons:
+  - VS Code + VS Code Insiders (npx)
+  - Cursor deeplink (base64 config)
+  - Include `${workspaceFolder}` only if required by the server
 
-## Information Gathering
+2. **Overview**
 
-Before generating the README, analyze the workspace to extract:
+- ✨ Features table (high-signal)
+- 🎯 When to Use (short decision guide)
 
-1. **Project metadata** from `package.json`:
-   - Name, version, description
-   - Author, license, repository URL
-   - Keywords, dependencies
-   - Available scripts (build, dev, test, lint)
+3. **Quick Start**
 
-2. **MCP capabilities** from source files:
-   - Tools (function names, descriptions, input/output schemas)
-   - Resources (URIs, descriptions, MIME types)
-   - Prompts (if any)
-   - Server configuration options
+- Minimal setup (usually `npx`)
+- At least one client config block (JSON) that works as-is
 
-3. **Configuration** from any config files:
-   - Environment variables
-   - CLI arguments
-   - Default values and limits
+4. **Installation**
 
-4. **Project structure**:
-   - Source directory layout
-   - Test coverage
-   - Build artifacts
+- NPX (recommended)
+- Global install (if supported)
+- From source (build/run steps)
 
-## README Structure Template
+5. **Configuration**
 
-Generate the README with the following sections (include only relevant sections):
+- CLI arguments table (only verified)
+- Environment variables table (only verified)
+- Defaults/limits where present
 
-### 1. Header Section
+6. **API Reference**
 
-```markdown
-# {Project Name}
+- 🔧 Tools: one subsection per tool with:
+  - purpose
+  - parameters table (type/required/default/description)
+  - returns description (+ example JSON)
+- 📚 Resources: URI patterns table (if any)
+- 💬 Prompts: names + args (if any)
 
-{One-line description}
+7. **Client Configuration Examples**
+   Use `<details>` blocks for:
 
-[![npm version](https://img.shields.io/npm/v/{package-name}.svg)](https://www.npmjs.com/package/{package-name})
-[![License](https://img.shields.io/npm/l/{package-name})](LICENSE)
-{Additional relevant badges: Node.js version, TypeScript, MCP SDK version, etc.}
+- VS Code
+- Claude Desktop
+- Cursor
+- Windsurf
+  (Include only what you can verify; otherwise omit.)
 
-## One-Click Install
+8. **Security**
+   Include only relevant items evidenced by code:
 
-[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name={mcp-server-name}&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22{package-name}%40latest%22%5D%7D)[![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name={mcp-server-name}&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22{package-name}%40latest%22%5D%7D&quality=insiders)
+- stdout pollution warning for stdio
+- Origin validation / DNS rebinding mitigation for HTTP
+- filesystem/path traversal constraints
+- auth/token handling (if implemented)
 
-[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name={mcp-server-name}&config={base64-encoded-config})
-```
+9. **Development**
 
-#### One-Click Install Placeholders
+- Prerequisites
+- Scripts table from `package.json`
+- Project structure diagram (from repo)
 
-Replace these placeholders with values from `package.json`:
+10. **Troubleshooting**
+    Only include issues evidenced by code or common to the detected transport:
 
-| Placeholder               | Source                  | Example                         |
-| ------------------------- | ----------------------- | ------------------------------- |
-| `{mcp-server-name}`       | Short display name      | `todokit`, `fs-context`         |
-| `{package-name}`          | `package.json` → `name` | `@j0hanz/todokit-mcp`           |
-| `{base64-encoded-config}` | Base64 of JSON config   | See encoding instructions below |
+- inspector usage
+- common config mistakes
+- stdout/stderr guidance (stdio)
 
-#### Cursor Config Encoding
+11. **Contributing & License**
 
-The Cursor deeplink requires a Base64-encoded JSON config. Generate it from this template:
+- Link to `CONTRIBUTING.md` if present
+- License from repo
+
+## One-Click Install Details (Generate Precisely)
+
+- `{package-name}` from `package.json.name`
+- `{mcp-server-name}` from repo (short display name; otherwise derive from package name safely)
+- Cursor deeplink uses Base64 of:
 
 ```json
 { "command": "npx", "args": ["-y", "{package-name}@latest"] }
 ```
 
-**To encode:** Use `btoa(JSON.stringify(config))` in browser console or Node.js.
-
-**Example for `@j0hanz/todokit-mcp`:**
-
-```
-Input:  {"command":"npx","args":["-y","@j0hanz/todokit-mcp@latest"]}
-Base64: eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBqMGhhbnovdG9kb2tpdC1tY3BAbGF0ZXN0Il19
-```
-
-#### With Workspace Folder Argument
-
-If the MCP server requires a workspace path argument, include `${workspaceFolder}`:
-
-```markdown
-[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name={mcp-server-name}&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22{package-name}%40latest%22%2C%22%24%7BworkspaceFolder%7D%22%5D%7D)
-```
-
-Config JSON with workspace:
+If a workspace folder argument is required:
 
 ```json
 {
@@ -148,300 +143,6 @@ Config JSON with workspace:
 }
 ```
 
-### 2. Overview Section
+## Final Output
 
-```markdown
-## ✨ Features
-
-| Feature            | Description         |
-| ------------------ | ------------------- |
-| 🔧 **{Feature 1}** | {Brief description} |
-| 📊 **{Feature 2}** | {Brief description} |
-
-{...more features}
-
-## 🎯 When to Use
-
-{Decision tree or use case guide for the tools}
-```
-
-### 3. Quick Start Section
-
-```markdown
-## 🚀 Quick Start
-
-{Simplest way to get started - typically npx or npm install}
-
-### {Client Name} (e.g., VS Code, Claude Desktop, Cursor)
-
-{Configuration JSON block}
-```
-
-### 4. Installation Section
-
-```markdown
-## 📦 Installation
-
-### NPX (Recommended)
-
-{npx command with MCP config JSON}
-
-### Global Installation
-
-{npm install -g command}
-
-### From Source
-
-{git clone and build instructions}
-```
-
-### 5. Configuration Section
-
-```markdown
-## ⚙️ Configuration
-
-### Command Line Arguments
-
-| Argument  | Type   | Default   | Description   |
-| --------- | ------ | --------- | ------------- |
-| `--{arg}` | {type} | {default} | {description} |
-
-### Environment Variables
-
-| Variable     | Default   | Description   |
-| ------------ | --------- | ------------- |
-| `{VAR_NAME}` | {default} | {description} |
-```
-
-### 6. API Reference Section
-
-````markdown
-## 🔧 Tools
-
-### `{tool_name}`
-
-{Description of what the tool does}
-
-| Parameter | Type   | Required | Default   | Description   |
-| --------- | ------ | -------- | --------- | ------------- |
-| `{param}` | {type} | {yes/no} | {default} | {description} |
-
-**Returns:** {Description of return value}
-
-**Example:**
-
-```json
-{Example input/output}
-```
-````
-
-{Repeat for each tool}
-
-## 📚 Resources (if applicable)
-
-| URI Pattern | Description   |
-| ----------- | ------------- |
-| `{uri}`     | {description} |
-
-## 💬 Prompts (if applicable)
-
-| Name       | Description   |
-| ---------- | ------------- |
-| `{prompt}` | {description} |
-
-````
-
-### 7. Client Configuration Examples
-
-```markdown
-## 🔌 Client Configuration
-
-<details>
-<summary><b>VS Code</b></summary>
-
-{VS Code specific configuration and install buttons}
-
-</details>
-
-<details>
-<summary><b>Claude Desktop</b></summary>
-
-{Claude Desktop configuration}
-
-</details>
-
-<details>
-<summary><b>Cursor</b></summary>
-
-{Cursor configuration}
-
-</details>
-
-<details>
-<summary><b>Windsurf</b></summary>
-
-{Windsurf configuration}
-
-</details>
-
-{Additional clients as needed}
-````
-
-### 8. Security Section (if applicable)
-
-```markdown
-## 🔒 Security
-
-{Security considerations, access controls, SSRF protection, etc.}
-```
-
-### 9. Development Section
-
-```markdown
-## 🛠️ Development
-
-### Prerequisites
-
-- Node.js >= {version}
-- {Other requirements}
-
-### Scripts
-
-| Command         | Description   |
-| --------------- | ------------- |
-| `npm run build` | {description} |
-| `npm run dev`   | {description} |
-| `npm run test`  | {description} |
-| `npm run lint`  | {description} |
-
-### Project Structure
-```
-
-src/
-├── index.ts # Entry point
-├── server.ts # MCP server setup
-├── tools/ # Tool implementations
-├── schemas/ # Zod input/output schemas
-└── lib/ # Utility functions
-
-```
-
-```
-
-### 10. Troubleshooting Section (if applicable)
-
-```markdown
-## ❓ Troubleshooting
-
-| Issue          | Solution   |
-| -------------- | ---------- |
-| {Common issue} | {Solution} |
-```
-
-### 11. Contributing & License
-
-```markdown
-## 🤝 Contributing
-
-{Brief contribution guidelines or link to CONTRIBUTING.md}
-
-## 📄 License
-
-{License type with link to LICENSE file}
-```
-
-## Best Practices to Apply
-
-### Documentation Quality
-
-- ✅ Use clear, concise language
-- ✅ Include working code examples
-- ✅ Add visual hierarchy with emojis (sparingly)
-- ✅ Use tables for structured data (parameters, options)
-- ✅ Include both quick start and detailed reference
-- ✅ Add badges for quick project assessment
-- ✅ Use collapsible sections for lengthy content
-
-### MCP-Specific Requirements
-
-- ✅ Include JSON configuration for each supported client
-- ✅ Document all tools with input/output schemas
-- ✅ List all resources and their URI patterns
-- ✅ Include environment variable documentation
-- ✅ Add CLI argument reference if applicable
-- ✅ Document security considerations
-- ✅ Include one-click install badges where supported
-
-### Code Blocks
-
-- ✅ Use language-specific syntax highlighting
-- ✅ Prefer `json` for MCP configurations
-- ✅ Use `bash` for terminal commands
-- ✅ Include realistic, tested examples
-
-## Recommended Workflow
-
-1. **Explore project structure:**
-
-   ```
-   roots()
-   ls(path=".")
-   find(path=".", pattern="**/*", maxResults=200)
-   ```
-
-2. **Read core files in batch:**
-
-   ```
-   read_many(paths=["package.json", "README.md", "src/index.ts"], head=200)
-   ```
-
-3. **Find all tool implementations:**
-
-   ```
-   find(path="src", pattern="**/*.ts", maxResults=500)
-   grep(path="src", pattern="registerTool")
-   grep(path="src", pattern="server.tool")
-   grep(path="src", pattern=".tool(")
-   ```
-
-4. **Extract schemas and descriptions:**
-
-   ```
-   grep(path="src", pattern="description:")
-   grep(path="src", pattern="z.object")
-   grep(path="src", pattern="inputSchema")
-   ```
-
-5. **Use `thinkseq.thinkseq`** if the project has 5+ tools or complex interdependencies.
-
-## Output Format
-
-Generate a complete, production-ready `README.md` file that:
-
-1. Can be used immediately without modification
-2. Follows the structure template above
-3. Includes only sections relevant to the project
-4. Uses accurate information extracted from the codebase
-5. Includes working configuration examples
-6. Has proper markdown formatting
-
-## Example Tool Documentation
-
-Here's an example of a well-documented tool from the `fs-context` toolset:
-
-```markdown
-### `read`
-
-Read a text file.
-
-| Parameter | Type   | Required | Default | Description                 |
-| --------- | ------ | -------- | ------- | --------------------------- |
-| `path`    | string | ✅       | -       | Path to the file to read    |
-| `head`    | number | ❌       | -       | Read only the first N lines |
-
-**Returns:** File contents as UTF-8 text.
-```
-
-## Now Generate
-
-Analyze the workspace and generate a comprehensive README following the patterns and structure above. Extract real information from the codebase to ensure accuracy.
+Return **only** the complete `README.md` content in Markdown (no extra commentary).

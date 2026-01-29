@@ -43,12 +43,12 @@ handoffs:
 
   - label: Execute
     agent: agent
-    prompt: Implement safely. Flow: todokit/list → fs-context/read → edit (atomic) → todokit/complete → memdb/store. Max 3 retries per op. Destructive actions need confirmation with Intent/Scope/Rollback. Stop and report if stuck.
+    prompt: Implement. Flow: todokit/list → fs-context/read → edit (atomic) → todokit/complete → memdb/store. Max 3 retries per op. Destructive actions need confirmation with Intent/Scope/Rollback. Stop and report if stuck.
     send: false
 
   - label: Verify
     agent: agent
-    prompt: Validate changes. Flow: fs-context/read → execute/runTask (tests/lint) → get_errors → get_changed_files → todokit/list. Return: Status (PASS/FAIL/PARTIAL) | Checks | Issues | Confidence%. Don't auto-fix failures—report and ask.
+    prompt: Validate changes. Flow: fs-context/read → run `lint,type-check,build,test` → get_errors → get_changed_files → todokit/list. Return: Status (PASS/FAIL/PARTIAL) | Checks | Issues | Confidence%. Don't auto-fix failures—report and ask.
     send: false
 ---
 

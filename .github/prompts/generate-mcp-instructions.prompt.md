@@ -1,33 +1,61 @@
-# Generate MCP Agent Instructions
+# Generate MCP Agent Instructions (Repo-Verified)
 
-You are an expert MCP Architect and Agentic Workflow Designer. Your task is to generate **Agent Instructions** for THIS MCP server.
+## Context
+
+**Role:** Expert MCP Architect + Agentic Workflow Designer  
+**Stack:** Detect from repository (Node/TS/JS vs Python vs Go; MCP SDK flavor)  
+**Mode:** Chained System
 
 ## Objective
 
-Create a high-signal **concise (<2KB)** `instructions.md` that teaches an AI agent how to use this specific MCP server effectively—bridging raw tool schemas to practical workflows—AND provide the exact code snippet needed to expose these instructions in the server implementation.
+Produce a concise (<2KB) `instructions.md` that teaches an AI agent how to use **this specific MCP server** effectively, based strictly on repository evidence, and provide the exact code snippet needed to expose those instructions in the server.
 
-## Hard Constraints
+Execute in phases: 1) Raw Data Extraction 2) Data Processing 3) Final Output Generation.
 
-- Do **not** invent tools, workflows, file paths, or commands.
-- Only include what you can **verify from the repository**; if unsure, omit or label **UNVERIFIED**.
-- Separate **Read** tools (safe) vs **Write** tools (side effects). If no write tools exist, do not describe write workflows.
-- Never guess IDs or resource URIs—always list/search first.
-- Keep `instructions.md` under **2KB** (tight, high-signal).
+## Standards & Constraints
 
-## Phase 1: Forensic Discovery (Repository-Backed)
+- **No invention:** Do not invent tools, workflows, file paths, commands, IDs, URIs, or capabilities.
+- **Evidence-bound:** Only include details you can **verify in-repo**. If unsure, omit or label **UNVERIFIED**.
+- **Tool safety:** Separate **Read** tools (no side effects) vs **Write** tools (side effects). If no write tools exist, do not describe write workflows.
+- **Never guess IDs/URIs:** Always list/search first; explicitly state this in the instructions.
+- **Do not dump JSON schemas:** Focus on practical behavior, constraints, pitfalls, and safe usage patterns.
+- **Size:** `instructions.md` must be **<2KB** (tight, high-signal).
+- **Integration snippet:** Choose exactly one integration approach based on detected runtime/framework:
+  - TypeScript `@modelcontextprotocol/sdk` (high-level `McpServer`) → expose Resource `internal://instructions` as `text/markdown`
+  - Python `FastMCP` → constructor injection `FastMCP(..., instructions=open(...).read())`
+  - Python low-level SDK → implement resource listing + reader for `internal://instructions`
+  - Do not include code for frameworks not used by this repo.
 
-Scan the workspace to determine (with file evidence):
+## Phase 1 — Forensic Discovery (Repository-Backed)
 
-1. **Runtime**: Node (TS/JS) vs Python vs Go
-2. **SDK framework**: low-level SDK vs TypeScript `McpServer` (high-level) vs Python `FastMCP`
-3. **Tool inventory**: list every tool; classify each as **Read** or **Write**
-4. **Implicit workflows**: inspect `examples/`, `test/`, docs, or scripts to infer how humans chain tools
+Scan the workspace and record evidence with file references:
 
-Record evidence as file references (e.g., `package.json`, `src/server.ts`, `examples/*`).
+1. **Runtime:** Node (TS/JS) vs Python vs Go
+   - Evidence targets: `package.json`, `tsconfig.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, etc.
+2. **SDK framework:** low-level vs high-level (`McpServer` / `FastMCP`)
+   - Evidence targets: server entry file(s), imports, initialization patterns.
+3. **Tool inventory:** list every tool, classify as **Read** or **Write**
+   - Evidence targets: tool registration code; any `resources`, `prompts`, handlers.
+4. **Implicit workflows:** infer safe tool-chains from `examples/`, `tests/`, docs, scripts
+   - Evidence targets: `examples/*`, `test/*`, `docs/*`, `README*`, `scripts/*`.
 
-## Phase 2: Write `instructions.md` (Return as Markdown)
+Output an internal “Evidence Notes” section while working (for your own correctness), but DO NOT include it in the final answer unless requested.
 
-Generate a concise Markdown file using EXACT structure below (fill with verified details only):
+## Phase 2 — Synthesize Practical Agent Guidance
+
+From verified tools/resources/prompts:
+
+- Identify the server’s **domain** and **primary resources** (1 sentence + short list).
+- Build 1–2 **Golden Path** workflows that represent how humans/agents should use the server.
+- For each tool, extract only the **nuances**:
+  - key required/format constraints
+  - side effects (if any) + when to ask user confirmation
+  - common failure modes and remediation (list/search first, narrower queries, etc.)
+- Capture error-handling strategy (repo-verified retries/backoff if present; otherwise omit).
+
+## Phase 3 — Author `instructions.md` (Exact Structure)
+
+Write `instructions.md` using ONLY verified details and EXACT structure:
 
 ```markdown
 # {Server Name} Instructions
@@ -70,34 +98,29 @@ _Do NOT repeat JSON schema. Focus on behavior and pitfalls._
 - [Fallback steps (search/list, narrower queries, etc.)]
 ```
 
-## Phase 3: Integration Logic (Choose One; Repo-Detected)
+Ensure the entire file is <2KB.
 
-Based on detected runtime/framework, output the exact code snippet to expose `instructions.md`:
+## Phase 4 — Integration Snippet (Repo-Detected)
 
-### A) TypeScript (`@modelcontextprotocol/sdk`)
+Based on detected runtime/framework, output the exact code snippet that exposes `instructions.md` per repo conventions:
 
-- Expose as Resource: `internal://instructions` with `text/markdown`
-- Use repo conventions for file paths (root `instructions.md` vs `src/instructions.md`)
+- If TypeScript SDK: register `internal://instructions` resource with `text/markdown` content loaded from the repo-appropriate path.
+- If Python FastMCP: inject `instructions=open(...).read()` into `FastMCP(...)`.
+- If Python low-level: implement list/read for `internal://instructions`.
 
-### B) Python (`FastMCP`)
+Use paths consistent with repo patterns (root vs `src/`), proven by evidence.
 
-- Use constructor injection: `FastMCP(..., instructions=open(...).read())`
-
-### C) Python (Low-Level SDK)
-
-- Implement resource listing + reader for `internal://instructions`
-
-Do not include code for paths that do not match the repo’s runtime/framework.
-
-## Phase 4: Final Output (STRICT)
+## Final Output (STRICT)
 
 Return ONLY the following, in order:
 
-1. A single Markdown code block containing the full contents of `instructions.md` (placed at the verified repo-appropriate path; mention the path in the first heading or a comment line).
+1. A single **Markdown** code block containing the full contents of `instructions.md`
+   - Include the verified repo path in the first heading line or a top comment (e.g., `<!-- path: ... -->`).
+
 2. A single code block with the exact integration snippet for this repo.
 3. A short verification checklist (3–6 bullets) confirming:
    - No invented tools/workflows
-   - <2KB markdown
+   - `<2KB` markdown
    - Read vs Write classified
    - Evidence-based commands/URIs
    - No schema dumping

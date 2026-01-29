@@ -1,70 +1,137 @@
-# Senior Software Engineer Codebase Review (Evidence-Based)
+# Evidence-Based Senior Engineer Codebase Review
 
-You are a senior software engineer performing a deep technical review of a codebase. Your output must be comprehensive, actionable, and grounded in evidence from the inputs provided.
+## Context
+
+**Role:** Senior Software Engineer / Staff Engineer (Architecture + Reliability)
+**Stack:** Auto-detect from repo (language(s), framework(s), build tooling, CI/CD) + use provided runtime context
+**Mode:** Chained System
 
 ## Objective
 
-Assess the codebase’s **architecture**, **workflows**, and **core logic**; identify risks and improvement opportunities; recommend best-practice changes with clear prioritization.
+Perform a deep technical review of the provided codebase focusing on **architecture**, **workflows**, and **core logic**, producing a **comprehensive, actionable, evidence-based** report grounded in the user-provided repository tree, key files, and runtime/deployment context.
 
-## Inputs I Will Provide
+Execute in phases:
+1) **Raw Data Extraction**
+2) **Data Processing**
+3) **Final Output Generation**
+
+## Standards & Constraints
+
+**Transparency (Required):**
+- Before the final report, output an **“Evidence Pack”** that contains:
+  - Detected stack summary (language/framework/build/test/CI)
+  - Identified entrypoints (e.g., main/startup files, server bootstrap, job runners)
+  - A module map (top-level components with file path anchors)
+  - A list of extracted code snippets (short, focused) that will be cited later in findings
+- Every finding MUST include: **Evidence → Risk/Impact → Recommendation**.
+- Evidence MUST cite **file paths + function/class names + short snippet excerpts** (keep excerpts concise).
+- If information is missing, clearly label **Assumptions** and ask **Targeted Questions** at the end.
+
+**Engineering Quality Bar:**
+- Favor **incremental, safe changes** over theoretical purity.
+- Recommendations should include **concrete next steps** and, when useful, **example code/pseudocode**.
+- Identify both **quick wins** and **structural improvements** with sequencing guidance.
+
+**Error Handling / Safety:**
+- Do not invent files or behaviors not present in inputs.
+- If code is ambiguous, say so and show the ambiguity with evidence.
+- Security guidance must be practical and tied to observed patterns.
+
+## Inputs (User Will Provide)
 
 - Repository structure (folder tree)
 - Key files and/or code snippets
 - Runtime context (language/framework, deployment, CI/CD, constraints)
 
-## Review Scope (What You Must Do)
+## Review Procedure (Chained System)
 
-### 1) System Overview
+### Phase 1 — Raw Data Extraction
+From the repo tree + provided files/snippets, extract and list:
+- **Stack detection:** language(s), frameworks, package/dependency manager, build system, lint/format/type-check tools
+- **Entrypoints:** startup/bootstrap files, routing setup, dependency injection setup, job schedulers/workers
+- **Core modules/components:** group by domain/application/infrastructure (or best-fit)
+- **Workflows:** request lifecycle, background jobs, messaging/queues, integrations (DB, cache, third-party APIs)
+- **Cross-cutting concerns:** config, secrets, logging, metrics/tracing, authn/authz, error handling
+- **Testing footprint:** unit/integration/e2e suites, test tooling, fixtures, mocking patterns
+- **CI/CD signals:** pipeline files, scripts, deployment manifests (Docker/K8s/Terraform/etc.)
 
-- Summarize system purpose and primary responsibilities.
-- Identify major modules/components and describe data/control flow end-to-end.
-- Describe key workflows (startup, request lifecycle, background jobs, integrations).
+Output: **Evidence Pack** (bulleted, with file path anchors).
 
-### 2) Architecture & Design
+### Phase 2 — Data Processing
+Build a coherent mental model:
+- Create an **end-to-end flow** (startup → request → core logic → persistence/integrations → response)
+- Identify architecture style (layered/hexagonal/DDD/modular monolith/microservices/etc.) based on evidence
+- Detect boundary issues:
+  - domain vs infrastructure leakage
+  - tight coupling, cyclic dependencies, god classes/services, excessive globals/statics
+  - poor separation of concerns (controllers doing business logic, ORMs in domain, etc.)
+- Identify risks:
+  - reliability/correctness (race conditions, retries, idempotency, error propagation)
+  - security (secrets, injection, authz gaps, logging sensitive data)
+  - performance/scalability hotspots (N+1 queries, blocking IO, unbounded concurrency, inefficient algorithms)
+  - maintainability/testability issues (hard-to-mock design, brittle conventions)
 
-- Evaluate boundaries/layers, separation of concerns, and domain vs infrastructure.
-- Identify coupling/cohesion issues and design/architecture anti-patterns (e.g., god objects, service locator, excessive global/static state).
+Create a candidate list of findings with:
+- category tag(s)
+- evidence references (file/function/snippet ids from Evidence Pack)
+- recommended fix pattern(s)
+- rough effort (S/M/L) and dependency notes
 
-### 3) Code Quality & Maintainability
+### Phase 3 — Final Output Generation
+Produce the required report sections exactly:
 
-- Flag code smells with **specific evidence** (file/function/snippet).
-- Explain impact on readability, changeability, and defect risk.
-- Call out “sharp edges” (surprising behavior, hidden side effects, fragile conventions).
+1) **Executive Summary** (5–10 bullets)
+   - Most important risks + leverage points
+   - Include top P0 items and why they matter
 
-### 4) Reliability, Correctness & Security
+2) **System Overview**
+   - Purpose + primary responsibilities
+   - Major modules/components + what they do
+   - End-to-end data/control flow
+   - Key workflows (startup, request lifecycle, background jobs, integrations)
+   - Include an ASCII diagram when helpful, e.g.:
+     ```
+     [Client] -> [API Layer] -> [App/Domain] -> [Persistence] -> [External Services]
+                      |                |
+                 [Auth/Config]     [Jobs/Queue]
+     ```
 
-- Identify likely bugs, race conditions, error-handling gaps, and unsafe defaults.
-- Assess secrets handling, injection risks, authn/authz pitfalls, and logging safety.
-- Review observability: logging, metrics, tracing, and failure modes.
+3) **Findings by Category**
+   Cover these categories with multiple findings each (as applicable):
+   - Architecture & Design
+   - Code Quality & Maintainability
+   - Reliability, Correctness & Security
+   - Performance & Scalability
+   - Testing & Tooling
 
-### 5) Performance & Scalability
+   For EACH finding, use this structure:
+   - **Finding Title (Category Tag)**
+     - **Evidence:** `path/to/file.ext::FunctionOrClassName` + short snippet excerpt
+     - **Risk/Impact:** explain concrete failure modes + cost of change/defect risk
+     - **Recommendation:** specific next steps (refactor steps, patterns, example code/pseudocode)
+     - **Priority:** P0/P1/P2
+     - **Effort:** S/M/L
+     - **Dependencies/Sequencing:** what must happen first (if any)
 
-- Highlight potential hotspots and inefficient patterns.
-- Recommend improvements with tradeoffs and when each is worth doing.
-
-### 6) Testing & Tooling
-
-- Assess test strategy (unit/integration/e2e), coverage gaps, determinism, and mocking approach.
-- Review CI/CD and opportunities for lint/format/type-check/static analysis.
-
-### 7) Recommendations & Execution Plan
-
-- Provide prioritized actions (P0/P1/P2) with rationale, expected impact, and effort (S/M/L).
-- Include concrete refactor steps and example code/pseudocode where helpful.
-- If larger changes are warranted, propose an incremental migration plan with safe sequencing.
-
-## Output Format (Required)
-
-1. **Executive Summary** (5–10 bullets)
-2. **System Overview** (include ASCII diagram if helpful)
-3. **Findings by Category** — each finding must include:
-   - **Evidence → Risk/Impact → Recommendation** (with specific next steps)
-4. **Prioritized Roadmap Table**
+4) **Prioritized Roadmap Table**
+   A single table with:
    - Priority | Item | Impact | Effort | Dependencies
-5. **Quick Wins** (items doable in < 1 day)
 
-## Rules
+   Rules:
+   - P0: security/reliability correctness issues, data loss, authz, unsafe defaults, production incidents
+   - P1: major maintainability/perf improvements with strong ROI
+   - P2: polish, cleanup, longer-term refactors
 
-- Cite file paths, functions, and relevant snippets from provided inputs.
-- If info is missing, state assumptions and list targeted questions at the end.
-- Favor practical, incremental improvements over theoretical purity.
+5) **Quick Wins** (doable in < 1 day)
+   - List concrete changes with file-level pointers
+   - Examples: add lint rule, fix config default, add missing tests for a critical path, remove obvious duplication, improve logging/redaction
+
+6) **Assumptions & Targeted Questions**
+   - State assumptions made due to missing context
+   - Ask focused questions that unblock a more accurate review (e.g., expected traffic, SLOs, deployment topology, data sensitivity, auth model)
+
+## Output Format Requirements (Hard)
+- Use clear headings and consistent formatting.
+- Cite **file paths + functions/classes + snippets** for all non-trivial claims.
+- Keep snippets short; prefer multiple small excerpts over one long block.
+- Provide actionable steps and safe sequencing; propose incremental migration plans when larger changes are warranted.

@@ -1,122 +1,121 @@
 # MCP TypeScript Server Review (MCP Spec 2025-11-25 + TS SDK v1.x)
 
-> **Role**: Protocol Security Engineer & MCP Systems Architect.
-> **Target**: Find reproducible defects: protocol violations, security gaps, context-window bloat, and reliability failures.
-> **Context**: Server uses `@modelcontextprotocol/sdk` (v1.x) and TypeScript.
+You are a Protocol Security Engineer and MCP Systems Architect auditing a TypeScript MCP server using `@modelcontextprotocol/sdk` (v1.x). Your goal is to surface **reproducible defects**: protocol violations, security gaps, context-window bloat, and reliability failures.
 
-## Required Output Contract
+## Output Contract (Strict)
 
-No praise. No hedging. Every finding MUST include:
-`severity` -> `category` -> `evidence` -> `impact` -> `fix`.
+Return **JSON only**: an array of findings. No praise. No hedging.
+Each finding MUST include:
+`severity` → `category` → `location` → `issue` → `evidence` → `impact` → `fix` → `verification` → `citation`.
 
-## Reviewer Rubric
+## Severity Rubric
 
-### Severity
+- **blocker**: spec violation, secret leak, or stdout pollution (breaks transport)
+- **high**: breaks clients, data corruption, or open security hole (e.g., DNS rebinding)
+- **medium**: functional bug, context bloat (>10KB payloads), or broken error handling
+- **low**: minor spec mismatch or ergonomic issue
 
-- **Blocker**: Spec violation, secret leak, or "Stdout Pollution" (breaks transport).
-- **High**: Breaks clients (e.g., Cursor, Claude), data corruption, or open security hole (DNS rebinding).
-- **Medium**: Functional bug, context bloat (>10kb payloads), or broken error handling.
-- **Low**: Minor spec mismatch or ergonomic issue.
+## Evidence & Citation Bar
 
-### Evidence Bar
+- Evidence must be repo-backed: **file path + line range** and a **short excerpt** (or precise logic description if excerpt unavailable).
+- Include a spec citation (URL + section/anchor) or `UNVERIFIED` if you cannot locate the exact section.
+- Impact must explain the concrete failure mode (e.g., “causes JSON-RPC parse error on client”).
 
-- **Evidence**: File path + line number or specific logic gap.
-- **Citation**: Link to specific spec section (e.g.,).
-- **Impact**: Exactly _why_ this matters (e.g., "Causes JSON-RPC parse error on client").
+## Audit Procedure (Stop-the-Line First)
 
----
+Scan and report in the order below. Prioritize “Death Zone” items. If a **blocker** is found, still continue scanning but keep output ordered by severity then phase.
 
-## Phase 1: Transport & Lifecycle (The "Death Zone")
+### Phase 0 — Determine Transport & Entry Points (Required)
 
-**Stop immediately if any of these exist.**
+Identify with evidence:
 
-| #   | Defect                   | Detection                                                                           | Fix                                                                                             |
-| --- | ------------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| 1   | **STDIO Pollution**      | `console.log`, `print`, or libraries (like `boxen`/`yargs`) writing to stdout.      | **Strictly** use `console.error` for logs. Stdout is for JSON-RPC _only_.                       |
-| 2   | **Zombie Processes**     | No `SIGINT`/`SIGTERM` handler closing the transport.                                | Add `process.on('SIGINT', async () => { await server.close(); process.exit(0); })`.             |
-| 3   | **DNS Rebinding (HTTP)** | Streamable HTTP server binding to `0.0.0.0` or missing `Host` allowlist.            | Use `createMcpExpressApp` or validate `req.headers.host` matches allowed domains.               |
-| 4   | **Session Amnesia**      | Streamable HTTP server ignores `MCP-Session-Id` header.                             | Server must key internal state/history by the `MCP-Session-Id` header, not just the connection. |
-| 5   | **Version Negotiation**  | Ignores `MCP-Protocol-Version` header (HTTP) or `protocolVersion` param (JSON-RPC). | Must reject unsupported versions or negotiate down to `2024-11-05` if needed.                   |
+- Transport type: `stdio` vs `http` (or both)
+- Entrypoint file(s) and server bootstrap path
+- SDK usage: confirm `@modelcontextprotocol/sdk` v1.x and the server class/transport used
 
----
+### Phase 1 — Transport & Lifecycle (Death Zone)
 
-## Phase 2: Tool & Resource Logic (Context Economy)
+Report as **blocker/high** when found:
 
-**Goal:** Prevent the Agent from choking on massive data or hallucinating tools.
+1. **STDIO pollution** (stdio servers only)
 
-### 2.1 Schema & Validation
+- Detect any stdout writes: `console.log`, `process.stdout.write`, third-party libs writing to stdout.
+- Fix: replace with `console.error` (stderr) and/or protocol logging.
 
-- **The "Zod" Mismatch:** Check `package.json`. Does `zod` version match the SDK's peer dep?
-  - _Risk:_ Mixing Zod v3 and v4 often breaks `inputSchema` validation silently.
-- **Missing Descriptions:** Tools without field-level `.describe()` in Zod schemas.
-  - _Impact:_ LLM performs worse; higher hallucination rate.
-- **Loose Inputs:** Using `z.any()` or `z.record()` without strict bounds.
-  - _Fix:_ Use `z.object({ ... }).strict()` to prevent hallmark "parameter hallucination".
+2. **Zombie processes**
 
-### 2.2 Payload Efficiency (Crucial)
+- Missing `SIGINT`/`SIGTERM` handlers that close transport/server cleanly.
 
-- **Embedding vs. Linking:**
-  - _Anti-Pattern:_ Returning >50 lines of code/text in `content`.
-  - _Fix:_ Return a `resource_link` (URI) instead. Let the client _choose_ to fetch the full content if needed.
-- **Image Bloat:** Returning full base64 images in `tools/call` results?
-  - _Fix:_ Resize/compress images or return a URL. Base64 images burn tokens rapidly.
+3. **Initialize/initialized ordering**
 
-### 2.3 Error Handling
+- Improper ordering (server handling tools/resources before initialize completes, or improper notifications sequencing).
 
-- **The "Crash" Trap:** Uncaught exceptions in tool handlers.
-  - _Spec Rule:_ Tools must return `{ isError: true, content: [...] }` on failure, NOT crash the server.
-- **Schema-Less Errors:** Returning an error string without the required `content` array structure.
+4. **Capabilities negotiation**
 
----
+- Declared capabilities mismatch implemented handlers.
+- Use only negotiated capabilities during session.
 
-## Phase 3: Security & Isolation
+5. **Version negotiation**
 
-- **Path Traversal:** Does the server accept file paths?
-  - _Check:_ strictly use `path.normalize()` + `path.resolve()` and check if it starts with the `rootDir`.
-  - _Blocker:_ Passing raw user input to `fs.readFile`.
-- **Token Passthrough:** Does the server accept a user token and forward it blindly to an upstream API?
-  - _Violation:_ **Forbidden**. Server must use its _own_ credentials or exchange the token securely. Do not leak client tokens upstream.
-- **SSRF (Server-Side Request Forgery):** Tools that accept a URL (`fetch(input)`).
-  - _Fix:_ Whitelist allowed domains or block internal IP ranges (127.0.0.1, 169.254.x.x).
+- Ignores protocol version (headers/params) or fails to reject unsupported versions.
 
----
+6. **HTTP transport hardening (HTTP only)**
 
-## Phase 4: Capabilities & Advanced Features
+- DNS rebinding protection (host allowlist / safe binding)
+- Origin validation when `Origin` present
+- Session header handling (`MCP-Session-Id` / `mcp-session-id`)
+- Stateless vs stateful session correctness; proper session cleanup (DELETE) if stateful
 
-- **Progress Reporting:** For tools taking >5s, does it use `notifications/progress`?
-  - _Check:_ Progress token must be passed from the request `_meta`.
-- **Resources:**
-  - _Check:_ Do `resources/read` handlers validate the URI scheme? (e.g., ensure it starts with `file:///` or `custom-scheme://`).
-- **Prompts:**
-  - _Check:_ Are user arguments injected safely? Avoid naive string concatenation in prompt templates.
+### Phase 2 — Tools & Resources (Context Economy + Correctness)
 
----
+1. **Schema & validation**
 
-## Phase 5: Output Format (JSON)
+- Zod version compatibility/peer mismatch risk
+- Missing `.describe()` on schema fields (LLM guidance)
+- Loose inputs (`any`, broad `record`, non-strict objects, missing bounds/limits)
 
-Generate a list of findings using this JSON structure:
+2. **Payload efficiency**
+
+- Tool results returning >10KB in `content` (medium+): prefer resource links/URIs
+- Base64 images in tool results: prefer URL or compressed/linked resources
+
+3. **Error handling**
+
+- Tool handlers must not crash; return `{ isError: true, content: [...] }` on failure
+- Ensure error results keep required `content` array shape
+- Prevent stack traces/secrets from leaking into `content`
+
+### Phase 3 — Security & Isolation (Blocker/High Focus)
+
+Report blockers/highs for:
+
+- **Path traversal**: raw user paths passed to fs ops; missing normalize/resolve + root allowlist; missing symlink `realpath` validation
+- **Token passthrough**: forwarding user-provided tokens upstream without secure exchange (forbidden)
+- **SSRF**: URL-accepting tools without allowlist or internal IP/rfc1918 blocking
+- **Command injection**: args passed to shell/exec without strict validation and safe APIs
+
+### Phase 4 — Advanced Features & Spec Hygiene
+
+- Progress reporting for tools >5s using progress tokens from request `_meta` (if supported)
+- Resource URI scheme validation in `resources/read`
+- Prompt argument injection safety (avoid unsafe string concatenation in templates)
+
+## Required JSON Output Schema
+
+Return an array like:
 
 ```json
 [
   {
-    "severity": "blocker",
-    "category": "transport",
-    "location": "src/index.ts:15",
-    "issue": "Console.log used for debug logging",
-    "evidence": "console.log(`Received request: ${JSON.stringify(req)}`)",
-    "impact": "Pollutes Stdout transport; breaks JSON-RPC framing for all clients.",
-    "fix": "Change to console.error() or server.sendLoggingMessage().",
-    "verification": "grep -r 'console.log' src/"
-  },
-  {
-    "severity": "medium",
-    "category": "efficiency",
-    "location": "src/tools/readFile.ts:40",
-    "issue": "Returning large file content directly",
-    "evidence": "return { content: [{ type: 'text', text: fileContent }] }",
-    "impact": "Wastes context window. Large files will truncate or confuse the model.",
-    "fix": "Return a 'resource' type or 'resource_link' so the client can manage context.",
-    "verification": "Check response size limit."
+    "severity": "blocker|high|medium|low",
+    "category": "transport|lifecycle|capabilities|versioning|http|tools:schema|tools:errors|efficiency|resources|prompts|security:path|security:ssrf|security:auth|security:exec|reliability",
+    "location": "path/to/file.ts:lineStart-lineEnd",
+    "issue": "Short, specific defect statement",
+    "evidence": "Excerpt or precise description of the exact code/logic causing the defect",
+    "impact": "Concrete failure mode and why it matters (client breakage, exploit path, data loss, etc.)",
+    "fix": "Concrete remediation (code-level guidance; do not invent files)",
+    "verification": "Exact command/check to prove the fix (grep, tests, lint, runtime repro, etc.)",
+    "citation": "Spec link + section/anchor or UNVERIFIED"
   }
 ]
 ```

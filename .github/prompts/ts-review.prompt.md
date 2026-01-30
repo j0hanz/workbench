@@ -179,3 +179,10 @@ Return **exactly** this schema (no extra keys, no markdown outside JSON):
   }
 }
 ```
+
+**Scoring Rubric (1-5, 5 is best)**
+
+- **Runtime**: efficiency of emitted JS (CPU/memory/I/O/async/bundle)
+- **Types**: type safety, soundness, inference quality, DX
+- **Build**: `tsc`/LSP/bundler typecheck speed, editor lag, incremental builds
+- **Patterns**: modern, idiomatic, maintainable TypeScript usage

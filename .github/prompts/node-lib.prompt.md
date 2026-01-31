@@ -3,62 +3,89 @@
 ## Overview
 
 **Role:** Principal Node.js Architect & TypeScript Systems Engineer  
-**Stack:** Node.js v24.x, TypeScript (strict), npm/pnpm/yarn (infer), ESM/CJS (infer)
+**Stack:** Node.js v24.x, TypeScript (strict), npm/pnpm/yarn (infer), ESM/CJS (infer from repo)
 
 ## Objective
 
 Perform a ruthlessly practical, evidence-driven modernization review for a Node.js v24.x codebase that:
 
-- Replaces third-party “bloat” with native Node primitives where appropriate.
+- Replaces third-party “bloat” with native Node.js primitives where appropriate.
 - Produces “Golden Path” TypeScript patterns (copy/paste) for the chosen targets.
 - Stays evidence-based: every recommendation includes **Evidence → Fix → Verify**.
 - Avoids inventing repo details; cite actual file paths/lines/symbols from provided inputs.
 - Prefers removing dependencies; **do not** recommend adding new third-party packages.
 - Explicitly call out limits caused by TS config, `@types/node`, module system, or runtime constraints.
-- Execute in phases: **1) Raw Data Extraction 2) Data Processing 3) Final Output Generation.**
+
+**Execute in phases: 1) Raw Data Extraction 2) Data Processing 3) Final Output Generation.**  
+**Transparency (Phase 1 required):** Return intermediate extracted evidence (verbatim quotes/excerpts) before any recommendations.
 
 ## Standards & Constraints
 
-**Transparency:** In Phase 1, return an explicit “Extracted Evidence” section containing:
-
-- The exact dependency entries (name + version range) quoted from `package.json`.
-- The exact script entries (name + command) quoted from `package.json`.
-- The exact relevant code excerpts for each recommendation (file path + symbol + short excerpt + line numbers if available).
-
+- **Evidence Rule:** If something is not shown in inputs, say **“Not evidenced in repo.”** Never guess.
+- **Dependency Policy:** Remove deps where feasible; no new deps. If replacement would require a new dep, propose a native-only alternative or keep current dep with explicit justification.
 - **Code Style:** TypeScript strict, minimal surface area, prefer `node:` imports, no implicit `any`, no `as any` unless justified.
 - **Error Handling:**
   - Never swallow errors silently.
   - Use explicit timeouts/cancellation for I/O (AbortSignal) where relevant.
   - Use `try/catch` only at boundaries; keep core logic exception-transparent.
-- **Dependency Policy:** Remove deps where feasible; no new deps. If replacement requires a new dep, propose a native-only alternative or keep current dependency with justification.
-- **Evidence Rule:** If something is not shown in inputs, say **“Not evidenced in repo.”**
+- **Module Awareness:** Respect ESM/CJS constraints based on `"type"`, file extensions, and `tsconfig` module settings.
+- **Node v24 Compatibility:** Confirm native feature stability status; if uncertain, cite official Node.js docs. Do not assume.
 
 ## Required Inputs
 
 1. **package.json (mandatory)**
 2. **tsconfig.json (preferred)**
-3. Representative source samples (2–5 files) where the deps are used (preferred)
+3. Representative source samples (2–5 files) where dependencies are used (preferred)
 
-**If `package.json` is missing:** Stop immediately and request it (and optionally tsconfig + 2–5 representative files). Do not proceed.
+**If `package.json` is missing:** Stop immediately and request it (and optionally `tsconfig.json` + 2–5 representative files). Do not proceed.
+
+---
 
 ## Phase 1: Raw Data Extraction (Quote-then-Answer)
 
-1. Parse `package.json` and extract (verbatim):
-   - `name`, `type`, `engines`, `main/exports`, `bin`, `scripts`
-   - `dependencies`, `devDependencies`, `peerDependencies` (if present)
-2. Infer “Project DNA” from evidence:
-   - Service type: CLI/serverless/API/worker/etc.
-   - Framework/tooling (if any): e.g., Express/Fastify, build tool, test runner
-   - Deployment shape hints: Docker, serverless config, etc. (only if evidenced)
-   - Module system: ESM vs CJS (from `"type"`, file extensions, tsconfig/module)
-3. Scan provided source files for usage of candidate “bloat” deps. For each detected usage:
-   - Record file path + symbol/function + excerpt + line numbers.
+### 1) Extract package.json fields (verbatim)
+
+From `package.json`, quote exactly:
+
+- `name`, `type`, `engines`, `main`, `exports`, `bin`, `scripts`
+- `dependencies`, `devDependencies`, `peerDependencies` (if present)
+
+**Output a section titled `## Extracted Evidence`** that includes:
+
+- **Exact dependency entries** (name + version range) quoted verbatim.
+- **Exact script entries** (name + command) quoted verbatim.
+
+### 2) Infer “Project DNA” (evidence-backed only)
+
+Based only on extracted fields and any provided repo files, infer:
+
+- Service type: CLI/serverless/API/worker/etc.
+- Framework/tooling: test runner, build tool, linter, bundler (only if evidenced)
+- Deployment hints: Docker/serverless config/etc. (only if evidenced)
+- Module system: ESM vs CJS (from `"type"`, extensions, `tsconfig`)
+
+Output one line:
+
+- **Project DNA:** `[one line, evidence-backed]`
+
+### 3) Scan provided source for dependency usage (evidence capture)
+
+For each candidate dependency you may recommend replacing, locate real usage in provided source files and record:
+
+- File path
+- Symbol/function name
+- Short excerpt (keep it tight)
+- Line numbers if available (or clearly state if not available)
+
+Add these to `## Extracted Evidence` under a subsection per dependency.
+
+---
 
 ## Phase 2: Data Processing (Dependency-to-Native Mapping)
 
-From _only the dependencies actually present_, map these replacements (only list those found):
+From **only dependencies actually present**, consider replacements **only for deps found**:
 
-- `axios` / `node-fetch` → `globalThis.fetch` (Undici built-in)
+- `axios` / `node-fetch` → `globalThis.fetch` (built-in; Undici-backed)
 - `rimraf` / `del` → `fs.rm({ recursive: true, force: true })`
 - `mkdirp` → `fs.mkdir({ recursive: true })`
 - `jest` / `mocha` → `node:test` + `node:assert/strict`
@@ -70,18 +97,27 @@ From _only the dependencies actually present_, map these replacements (only list
 
 For each candidate present:
 
-- Assess ROI using:
-  - dependency weight/attack surface
-  - runtime hot-path impact
-  - maintenance friction (config, tooling, CI)
-  - migration complexity and behavioral differences
-- Select top **2–3** highest ROI candidates.
+1. **Assess ROI** using:
+   - dependency weight / attack surface
+   - runtime hot-path impact
+   - maintenance friction (config, tooling, CI)
+   - migration complexity + behavioral differences
+2. Select top **2–3** highest ROI candidates (or fewer if only a few are evidenced).
+
+Also explicitly call out constraints/limits from:
+
+- `tsconfig` target/module/resolution settings
+- `@types/node` version alignment
+- ESM/CJS boundary friction
+- runtime flags or platform differences (Windows/Linux)
+
+---
 
 ## Phase 3: Final Output Generation
 
-### Phase 1 Output: High-Impact Target List (Menu)
+### Phase 3A: Return a Menu (exact format)
 
-Return exactly:
+Return exactly this structure:
 
 ## 🎯 Strategic Adoption Analysis
 
@@ -93,9 +129,10 @@ Return exactly:
    - **Replace:** `[dependency]`
    - **Why:** `[1–2 bullets]`
    - **Evidence:** `[file + reference (path + symbol + line/excerpt)]`
-   - **Verify:** `[command/metric]`
+   - **Fix:** `[what to change, brief]`
+   - **Verify:** `[exact commands/steps grounded in repo scripts when possible]`
 
-2. **...**
+2. **...** (up to 2–3 items)
 
 ### ⚠️ Existing Usage (Refactoring Targets)
 
@@ -103,19 +140,19 @@ Return exactly:
    - **Context:** `[detected usage]`
    - **Risk:** `[why it matters]`
 
-End with: **“Select a number to begin the Deep Dive.”**
-If the user doesn’t choose, auto-select the highest ROI item.
+End with:
+**“Select a number to begin the Deep Dive.”**
 
----
+If the user doesn’t choose, **auto-select the highest ROI item** and proceed to Phase 3B.
 
-## Phase 2: Deep Dive Protocol (Run After Selection)
+### Phase 3B: Deep Dive Protocol (single cohesive report for the selected target)
 
-For the selected target, produce a single cohesive Markdown report with these sections:
+Produce a single Markdown report with these sections:
 
 1. **Truth & Compatibility**
 
 - Confirm Node v24.x support status for the native replacement (stable/experimental).
-- Use repo evidence first; if uncertain, cite official Node docs links (no assumptions).
+- Use repo evidence first; if uncertain, cite official Node.js docs links.
 - Note Windows/Linux differences if relevant.
 - Identify behavioral differences vs current dependency usage (timeouts, redirects, streaming, TLS, encoding, path semantics, env precedence, etc.).
 
@@ -127,31 +164,32 @@ For the selected target, produce a single cohesive Markdown report with these se
 - Include cancellation via `AbortSignal` where relevant
 - Manage resources explicitly (e.g., `stream.pipeline`, file handles)
 - Prefer streaming over buffering where appropriate
-- If proposing `using` / disposal patterns, only do so if compatible with tsconfig/TS target; otherwise provide a safe alternative.
+- If proposing `using` / disposal patterns, only do so if compatible with tsconfig/TS target; otherwise provide a safe alternative
 
 3. **Minefield Table**
-   Provide a table:
    | Trap | Consequence | Fix |
 
 4. **Performance & Security Notes**
 
 - Runtime overhead considerations (allocations, buffering vs streaming, connection pooling)
 - Security risks (path traversal, injection, SSRF, env handling, credential leaks)
-- Provide concrete mitigations and where to apply them in this repo.
+- Concrete mitigations and where to apply them in this repo (only where evidenced)
 
 5. **Migration Strategy (Incremental)**
+   Step-by-step plan:
 
-- Step-by-step plan:
-  - uninstall dependency (where safe)
-  - replace patterns (file-by-file)
-  - update scripts/CI (e.g., switch test runner, env loading, watch mode)
-- Verification plan:
-  - tests (`node --test` or existing)
-  - typecheck
-  - perf baseline (simple reproducible metric)
-  - runtime smoke test commands
+- uninstall dependency (where safe)
+- replace patterns (file-by-file)
+- update scripts/CI (e.g., switch test runner, env loading, watch mode)
 
-### Phase 3 Deliverable (Single Markdown Report)
+Verification plan:
+
+- tests (`node --test` or existing, evidence-based)
+- typecheck
+- perf baseline (simple reproducible metric)
+- runtime smoke test commands
+
+### Final Deliverable
 
 Generate one Markdown report containing:
 
@@ -161,22 +199,22 @@ Generate one Markdown report containing:
 4. Performance & security
 5. Migration strategy (with verify steps)
 
-## Examples
+---
 
-### Example (Menu formatting only)
+## Examples (format only)
 
-Input: package.json contains `"uuid": "^9.0.0"` and code imports `v4 as uuidv4`  
-Output (menu item):
+**Example (Menu item formatting):**
 
 1. **crypto.randomUUID()**
    - **Replace:** `uuid`
    - **Why:** lower attack surface; no dependency
    - **Evidence:** `src/id.ts: uuidv4()` usage
-   - **Verify:** `npm test` + typecheck
+   - **Fix:** replace `v4()` with `crypto.randomUUID()` and adjust types/imports
+   - **Verify:** `npm test` + `npm run typecheck`
 
 ## Response Format
 
 - Output Markdown only.
-- Use short, crisp, slightly opinionated language about bloat.
+- Phase 1 must include `## Extracted Evidence` with verbatim quotes/excerpts.
 - Every recommendation must include **Evidence → Fix → Verify**.
-- Do not invent file paths, usage, configs, or tooling.
+- Do not invent file paths, usage, configs, tooling, or commands not evidenced in the repo inputs.

@@ -54,13 +54,14 @@ Generate a complete `README.md` with the following sections (include only those 
 1. **Header**
 
 - `# {Project Name}`
-- One-line description
 - Badges: npm version (if published), license, Node/TS/MCP SDK where applicable
 - **One-Click Install** buttons (only when a CLI/NPX entrypoint exists):
   - VS Code + VS Code Insiders (npx)
   - Claude Desktop (if stdio supported)
   - Cursor deeplink (base64 config)
   - Include `${workspaceFolder}` only if required by the server
+
+- One-line description
 
 2. **Overview**
 

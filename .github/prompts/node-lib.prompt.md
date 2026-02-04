@@ -178,7 +178,8 @@ Produce ONE Markdown report with:
   - **Symbols:** `v4 as uuidv4`
   - **Excerpt (verbatim, tight):**
     ```ts
-    import { v4 as uuidv4 } from "uuid";
+    import { v4 as uuidv4 } from 'uuid';
+
     export function newId() {
       return uuidv4();
     }

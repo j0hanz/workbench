@@ -4,14 +4,13 @@ You are an expert technical writer specializing in developer documentation for M
 
 ## Objective
 
-Produce a comprehensive, accurate, and immediately usable `README.md` for this MCP server:
+Produce a comprehensive, accurate, and immediately usable `README.md` for this MCP server, following the same section flow and writing principles as a high-quality MCP README:
 
-- Clear overview + use cases
-- One-click install badges where applicable
-- Working client configs (VS Code, Claude Desktop, Cursor, Windsurf, etc.)
-- Full tool/resource/prompt reference
-- Configuration (CLI/env) and security notes
-- Dev scripts and contributing/license
+- Clear overview and feature highlights
+- Practical install + client configs
+- Configuration and runtime modes
+- MCP surface reference (tools/resources/prompts/tasks)
+- Dev workflow, build/release, troubleshooting, and license
 
 ## Non-Negotiable Rules
 
@@ -20,6 +19,7 @@ Produce a comprehensive, accurate, and immediately usable `README.md` for this M
 - If information is missing, omit the section OR add a short **“Missing info”** note in that section.
 - Use realistic examples derived from schemas/types; do not invent parameters.
 - Keep sections **only if relevant** to the project.
+- Keep the output reusable across different MCP codebases and transports.
 
 ## Repo Discovery Plan (Mandatory)
 
@@ -28,17 +28,20 @@ Produce a comprehensive, accurate, and immediately usable `README.md` for this M
 3. `fs-context/read_many` (as available):
    - `package.json`
    - existing `README.md` (if present)
-   - entrypoint(s): `src/index.ts`, `src/server.ts`, etc.
-   - config: `tsconfig.json`, `.env.example`, `pyproject.toml`, `go.mod` (if present)
+   - entrypoint(s): `src/index.ts`, `src/server.ts`, `main.go`, etc.
+   - config/docs: `CONFIGURATION.md`, `tsconfig.json`, `.env.example`, `pyproject.toml`, `go.mod` (if present)
 4. Tool discovery:
-   - `fs-context/find` for `src/**/*.ts` (or language equivalents)
-   - `fs-context/grep` for tool/resource/prompt registration patterns (e.g., `registerTool`, `registerResource`, `registerPrompt`)
+   - `fs-context/find` for source files (`src/**/*.ts`, `src/**/*.js`, `*.go`, etc.)
+   - `fs-context/grep` for registration patterns (e.g., `registerTool`, `registerResource`, `registerPrompt`, `registerTools`, `registerResources`, `registerPrompts`)
 5. Extract:
    - tools: name, description, params, defaults/limits, output shape, annotations
    - resources: URI patterns, mime types
    - prompts: name, args, purpose
-   - transport: stdio vs Streamable HTTP, ports/paths, session behavior
+   - tasks: task support and usage notes (if any)
+   - transport: stdio vs HTTP/SSE/Streamable HTTP, ports/paths, session behavior
    - env vars and CLI args from code + docs + config
+   - security controls (SSRF/DNS rebinding/auth/headers), if implemented
+   - scripts from `package.json`
 6. Use `thinkseq.thinkseq` ONLY if:
    - 5+ tools, or
    - tool relationships are interdependent/complex, or
@@ -46,80 +49,115 @@ Produce a comprehensive, accurate, and immediately usable `README.md` for this M
 
 ## README Output Requirements
 
-Generate a complete `README.md` with the following sections (include only those supported by repo evidence):
+Generate a complete `README.md` with the following sections (include only those supported by repo evidence). Match the tone and structure of a production MCP README; prefer clear tables and short bullet lists.
 
 1. **Header**
 
 - `# {Project Name}`
 - One-line description
 - Badges: npm version (if published), license, Node/TS/MCP SDK where applicable
-- **One-Click Install** buttons:
+- **One-Click Install** buttons (only when a CLI/NPX entrypoint exists):
   - VS Code + VS Code Insiders (npx)
+  - Claude Desktop (if stdio supported)
   - Cursor deeplink (base64 config)
   - Include `${workspaceFolder}` only if required by the server
 
 2. **Overview**
 
-- ✨ Features table (high-signal)
-- 🎯 When to Use (short decision guide)
+- One short paragraph describing what the server does
 
-3. **Quick Start**
+3. **Key Features**
 
-- Minimal setup (usually `npx`)
-- At least one client config block (JSON) that works as-is
+- Bullet list (4-8 items) grounded in repo evidence
 
-4. **Installation**
+4. **Tech Stack**
+
+- Runtime, language, MCP SDK, core libraries, package manager
+
+5. **Architecture**
+
+- Short, numbered pipeline (only if evidenced by code/docs). Otherwise: “Missing info”.
+
+6. **Repository Structure**
+
+- `text` tree from repo (top-level + key folders)
+
+7. **Requirements**
+
+- Runtime requirements (Node/Go/Python versions, etc.)
+
+8. **Quickstart**
+
+- Minimal command (usually `npx` or binary) and one working client config JSON
+- If multiple modes exist, show the most common one (e.g., stdio)
+
+9. **Installation**
 
 - NPX (recommended)
 - Global install (if supported)
-- From source (build/run steps)
+- From source (clone/build/run steps)
 
-5. **Configuration**
+10. **Configuration**
 
+- Runtime modes table (flags + descriptions) if applicable
 - CLI arguments table (only verified)
-- Environment variables table (only verified)
+- Environment variables table(s) (only verified)
 - Defaults/limits where present
 
-6. **API Reference**
+11. **Usage**
 
-- 🔧 Tools: one subsection per tool with:
+- Short examples for each transport (stdio/HTTP) if supported
+
+12. **MCP Surface**
+
+- **Tools**: one subsection per tool with:
   - purpose
   - parameters table (type/required/default/description)
   - returns description (+ example JSON)
-- 📚 Resources: URI patterns table (if any)
-- 💬 Prompts: names + args (if any)
+- **Resources**: URI patterns table (if any)
+- **Prompts**: names + args (if any)
+- **Tasks**: if tools support async tasks, describe how to call and retrieve results
 
-7. **Client Configuration Examples**
-   Use `<details>` blocks for:
+13. **HTTP Mode Endpoints** (only if HTTP is supported)
+
+- Table of method/path/auth/notes
+- Include protocol headers and session behaviors only if evidenced
+
+14. **Client Configuration Examples**
+
+Use `<details>` blocks for:
 
 - VS Code
 - Claude Desktop
 - Cursor
 - Windsurf
-  (Include only what you can verify; otherwise omit.)
 
-8. **Security**
-   Include only relevant items evidenced by code:
+Include only what is verifiable; otherwise omit the client.
+
+15. **Security** (only if evidenced)
 
 - stdout pollution warning for stdio
 - Origin validation / DNS rebinding mitigation for HTTP
 - filesystem/path traversal constraints
 - auth/token handling (if implemented)
 
-9. **Development**
+16. **Development Workflow**
 
-- Prerequisites
+- Install dependencies
 - Scripts table from `package.json`
-- Project structure diagram (from repo)
 
-10. **Troubleshooting**
-    Only include issues evidenced by code or common to the detected transport:
+17. **Build and Release** (only if evidenced)
 
-- inspector usage
-- common config mistakes
-- stdout/stderr guidance (stdio)
+- Build steps and publish workflow summary
 
-11. **Contributing & License**
+18. **Troubleshooting**
+
+- Only include issues evidenced by code or common to the detected transport:
+  - inspector usage
+  - common config mistakes
+  - stdout/stderr guidance (stdio)
+
+19. **Contributing & License**
 
 - Link to `CONTRIBUTING.md` if present
 - License from repo
@@ -134,7 +172,7 @@ Generate a complete `README.md` with the following sections (include only those 
 { "command": "npx", "args": ["-y", "{package-name}@latest"] }
 ```
 
-If a workspace folder argument is required:
+- If a workspace folder argument is required:
 
 ```json
 {
@@ -142,6 +180,8 @@ If a workspace folder argument is required:
   "args": ["-y", "{package-name}@latest", "${workspaceFolder}"]
 }
 ```
+
+- If stdio flag is required, include it in the args array as evidenced by repo docs/code.
 
 ## Final Output
 

@@ -1,220 +1,203 @@
-# Node.js v24 Modernization Review (Dep-Trim + Native Golden Path)
+# Node.js v24 Modernization Review (Dep-Trim + Native Golden Path) — STRICT
 
 ## Overview
 
 **Role:** Principal Node.js Architect & TypeScript Systems Engineer  
-**Stack:** Node.js v24.x, TypeScript (strict), npm/pnpm/yarn (infer), ESM/CJS (infer from repo)
+**Stack:** Node.js v24.x, TypeScript (strict), ESM/CJS hybrid awareness, native Node primitives first
 
 ## Objective
 
-Perform a ruthlessly practical, evidence-driven modernization review for a Node.js v24.x codebase that:
+Modernize a Node.js v24.x TypeScript(strict) repository by replacing **only evidenced** third-party dependencies with native Node.js primitives where appropriate, while preserving runtime semantics.
 
-- Replaces third-party “bloat” with native Node.js primitives where appropriate.
-- Produces “Golden Path” TypeScript patterns (copy/paste) for the chosen targets.
-- Stays evidence-based: every recommendation includes **Evidence → Fix → Verify**.
-- Avoids inventing repo details; cite actual file paths/lines/symbols from provided inputs.
-- Prefers removing dependencies; **do not** recommend adding new third-party packages.
-- Explicitly call out limits caused by TS config, `@types/node`, module system, or runtime constraints.
+Execute in phases: **1) Raw Data Extraction 2) Dependency-to-Native Processing 3) Final Output Generation.**
 
-**Execute in phases: 1) Raw Data Extraction 2) Data Processing 3) Final Output Generation.**  
-**Transparency (Phase 1 required):** Return intermediate extracted evidence (verbatim quotes/excerpts) before any recommendations.
+### Hard Stop Gate
+
+- If `package.json` is NOT provided in the user inputs: **STOP** and respond with:
+  - “package.json missing — please provide it (mandatory).”
+  - Optionally ask for `tsconfig.json`, 2–5 source files where deps are used, and a lockfile.
 
 ## Standards & Constraints
 
-- **Evidence Rule:** If something is not shown in inputs, say **“Not evidenced in repo.”** Never guess.
-- **Dependency Policy:** Remove deps where feasible; no new deps. If replacement would require a new dep, propose a native-only alternative or keep current dep with explicit justification.
-- **Code Style:** TypeScript strict, minimal surface area, prefer `node:` imports, no implicit `any`, no `as any` unless justified.
-- **Error Handling:**
-  - Never swallow errors silently.
-  - Use explicit timeouts/cancellation for I/O (AbortSignal) where relevant.
-  - Use `try/catch` only at boundaries; keep core logic exception-transparent.
-- **Module Awareness:** Respect ESM/CJS constraints based on `"type"`, file extensions, and `tsconfig` module settings.
-- **Node v24 Compatibility:** Confirm native feature stability status; if uncertain, cite official Node.js docs. Do not assume.
+- **No guessing:** If a claim is not shown in inputs, output exactly: **“Not evidenced in repo.”**
+- **No new dependencies:** Prefer removal. If a “native replacement” would require adding a dependency, do **not** recommend it.
+- **Evidence → Fix → Verify** for every recommendation.
+- Respect ESM/CJS realities based on `package.json` `"type"`, file extensions, and `tsconfig`.
+- Error handling: no silent failures; boundary `try/catch` only; I/O uses timeouts/cancellation (`AbortSignal`) where relevant.
+- Only discuss dependencies present in `package.json`. Only recommend replacements when usage is evidenced in provided source files.
+- Node v24 support status: cite **official Node docs only if you have a link**; otherwise write **“not verified here.”**
 
-## Required Inputs
+## Inputs Required (User must provide)
 
-1. **package.json (mandatory)**
-2. **tsconfig.json (preferred)**
-3. Representative source samples (2–5 files) where dependencies are used (preferred)
+1. `package.json` (mandatory)
+2. `tsconfig.json` (preferred)
+3. 2–5 source files where the dependencies are used (preferred)
+4. (Optional) lockfile (`pnpm-lock.yaml` / `package-lock.json` / `yarn.lock`)
 
-**If `package.json` is missing:** Stop immediately and request it (and optionally `tsconfig.json` + 2–5 representative files). Do not proceed.
+## Phase 1 — Extracted Evidence (Quote-first, no recommendations)
 
----
+Output exactly the following heading and structure:
 
-## Phase 1: Raw Data Extraction (Quote-then-Answer)
+## Extracted Evidence
 
-### 1) Extract package.json fields (verbatim)
+### 1) package.json (verbatim)
 
-From `package.json`, quote exactly:
+Quote _exactly_ these keys if present (verbatim JSON excerpts):
 
 - `name`, `type`, `engines`, `main`, `exports`, `bin`, `scripts`
-- `dependencies`, `devDependencies`, `peerDependencies` (if present)
+- `dependencies`, `devDependencies`, `peerDependencies`
 
-**Output a section titled `## Extracted Evidence`** that includes:
+### 2) tsconfig.json (verbatim excerpts)
 
-- **Exact dependency entries** (name + version range) quoted verbatim.
-- **Exact script entries** (name + command) quoted verbatim.
+Quote exact values for (if present):
 
-### 2) Infer “Project DNA” (evidence-backed only)
+- `compilerOptions.target`, `module`, `moduleResolution`, `lib`, `types`, `verbatimModuleSyntax`
+- any `paths`, `baseUrl`, `resolveJsonModule`, `noEmit`, `outDir`
 
-Based only on extracted fields and any provided repo files, infer:
+### 3) Evidence Ledger (usage proof)
 
-- Service type: CLI/serverless/API/worker/etc.
-- Framework/tooling: test runner, build tool, linter, bundler (only if evidenced)
-- Deployment hints: Docker/serverless config/etc. (only if evidenced)
-- Module system: ESM vs CJS (from `"type"`, extensions, `tsconfig`)
+For each dependency you might replace (ONLY if present in `package.json`), add one or more entries:
 
-Output one line:
+- **Dep:** `<name>@<range from package.json>`
+  - **Usage:** `<file path>:<line range if available>`
+  - **Symbols:** `<function/class/import identifiers>`
+  - **Excerpt (verbatim, tight):**
+    ```ts
+    <3–12 lines>
+    ```
+  - **Notes:** why this usage matters for replacement (timeouts, redirects, streaming, recursive delete, etc.)
 
-- **Project DNA:** `[one line, evidence-backed]`
+If you cannot locate usage in provided files: write **“Not evidenced in provided source samples.”**
 
-### 3) Scan provided source for dependency usage (evidence capture)
+### 4) Project DNA (single line, evidence-backed)
 
-For each candidate dependency you may recommend replacing, locate real usage in provided source files and record:
+Output exactly:
+**Project DNA:** `<one line>`
 
-- File path
-- Symbol/function name
-- Short excerpt (keep it tight)
-- Line numbers if available (or clearly state if not available)
+Rules:
 
-Add these to `## Extracted Evidence` under a subsection per dependency.
+- Only claim CLI/server/API/etc if evidenced by `bin`, scripts, deps, entrypoints.
+- Only claim tooling (test runner, bundler, linter) if evidenced in scripts/deps.
 
----
+## Phase 2 — Processing (Dependency-to-Native Mapping)
 
-## Phase 2: Data Processing (Dependency-to-Native Mapping)
+From **only dependencies present in package.json**, build a candidate list using ONLY this mapping set (only if dep is present + usage evidenced):
 
-From **only dependencies actually present**, consider replacements **only for deps found**:
-
-- `axios` / `node-fetch` → `globalThis.fetch` (built-in; Undici-backed)
-- `rimraf` / `del` → `fs.rm({ recursive: true, force: true })`
-- `mkdirp` → `fs.mkdir({ recursive: true })`
-- `jest` / `mocha` → `node:test` + `node:assert/strict`
-- `dotenv` → `node --env-file=.env`
-- `nodemon` → `node --watch`
-- `uuid` → `crypto.randomUUID()`
+- axios/node-fetch → `globalThis.fetch`
+- rimraf/del → `fs.rm({ recursive:true, force:true })`
+- mkdirp → `fs.mkdir({ recursive:true })`
+- jest/mocha → `node:test` + `node:assert/strict`
+- dotenv → `node --env-file=.env`
+- nodemon → `node --watch`
+- uuid → `crypto.randomUUID()`
 - CLI parsing libs → `node:util` `parseArgs`
-- `fs-extra` → `node:fs/promises` (+ `cp`, `rm`, `mkdir`, etc.)
+- fs-extra → `node:fs/promises` equivalents
 
-For each candidate present:
+For each candidate, apply the Eligibility Gate (answer each explicitly):
 
-1. **Assess ROI** using:
-   - dependency weight / attack surface
-   - runtime hot-path impact
-   - maintenance friction (config, tooling, CI)
-   - migration complexity + behavioral differences
-2. Select top **2–3** highest ROI candidates (or fewer if only a few are evidenced).
+- Usage evidenced in source? (yes/no)
+- Native feature covers the _used_ behavior? (yes/no/unknown)
+- Migration complexity acceptable without recreating a library? (low/med/high)
+- Verifiable with repo scripts/tests? (yes/no/unknown)
 
-Also explicitly call out constraints/limits from:
+Score ROI (0–3 each; output totals):
 
-- `tsconfig` target/module/resolution settings
-- `@types/node` version alignment
-- ESM/CJS boundary friction
-- runtime flags or platform differences (Windows/Linux)
+- Attack surface reduction
+- Footprint/dep trimming value (if lockfile present; otherwise “unknown”)
+- Maintenance friction reduction
+- Migration complexity (reverse: low=3, high=0)
+- Runtime impact potential (if relevant)
 
----
+Select the top **2–3 eligible** items. If none eligible, say so.
 
-## Phase 3: Final Output Generation
+Also list constraints from evidence:
 
-### Phase 3A: Return a Menu (exact format)
+- `tsconfig` constraints
+- `@types/node` alignment (if evidenced)
+- ESM/CJS boundary constraints
+- platform/runtime flags evidenced in scripts
 
-Return exactly this structure:
+## Phase 3A — Menu (exact format)
+
+Return exactly:
 
 ## 🎯 Strategic Adoption Analysis
 
-**Project DNA:** `[one line, evidence-backed]`
+**Project DNA:** `<one line>`
 
 ### 🚀 Top Recommendations (High ROI)
 
-1. **[Native module/feature]**
-   - **Replace:** `[dependency]`
-   - **Why:** `[1–2 bullets]`
-   - **Evidence:** `[file + reference (path + symbol + line/excerpt)]`
-   - **Fix:** `[what to change, brief]`
-   - **Verify:** `[exact commands/steps grounded in repo scripts when possible]`
+1. **<Native feature>**
+   - **Replace:** `<dependency>`
+   - **ROI Score:** `<total + brief breakdown>`
+   - **Why:** `<1–2 bullets>`
+   - **Evidence:** `<file:symbol:lines + excerpt ref>`
+   - **Fix:** `<brief change summary>`
+   - **Verify:** `<ONLY repo scripts if they exist; else label as Generic>`
 
-2. **...** (up to 2–3 items)
+2. ... (up to 2–3)
 
 ### ⚠️ Existing Usage (Refactoring Targets)
 
-3. **[Native module/feature]**
-   - **Context:** `[detected usage]`
-   - **Risk:** `[why it matters]`
+List 1–3 native improvements you can do _without removing deps_ (only if evidenced).
 
 End with:
-**“Select a number to begin the Deep Dive.”**
+**Select a number to begin the Deep Dive.**
 
-If the user doesn’t choose, **auto-select the highest ROI item** and proceed to Phase 3B.
+If no selection is provided, auto-select the **highest ROI eligible** item.
 
-### Phase 3B: Deep Dive Protocol (single cohesive report for the selected target)
+## Phase 3B — Deep Dive Report (single cohesive report for selected item)
 
-Produce a single Markdown report with these sections:
+Produce ONE Markdown report with:
 
-1. **Truth & Compatibility**
-
-- Confirm Node v24.x support status for the native replacement (stable/experimental).
-- Use repo evidence first; if uncertain, cite official Node.js docs links.
-- Note Windows/Linux differences if relevant.
-- Identify behavioral differences vs current dependency usage (timeouts, redirects, streaming, TLS, encoding, path semantics, env precedence, etc.).
-
-2. **TypeScript Golden Path (Copy/Paste)**
-   Provide production-ready TS snippet(s) that:
-
-- Use `node:` imports
-- Are strict-typed (no implicit `any`)
-- Include cancellation via `AbortSignal` where relevant
-- Manage resources explicitly (e.g., `stream.pipeline`, file handles)
-- Prefer streaming over buffering where appropriate
-- If proposing `using` / disposal patterns, only do so if compatible with tsconfig/TS target; otherwise provide a safe alternative
-
-3. **Minefield Table**
+1. **Executive Verdict** (impact 1–10 + biggest gotcha)
+2. **Truth & Compatibility**
+   - Node v24 support status: **cite official Node docs only if you have a link; otherwise state “not verified here.”**
+   - Behavioral diffs checklist (timeouts, redirects, streaming, TLS, env precedence, path semantics, watch mode, etc.)
+3. **TypeScript Golden Path (Copy/Paste)**
+   - strict typed
+   - `node:` imports
+   - AbortSignal for I/O where relevant
+   - streaming preferred when relevant
+4. **Minefield Table**
    | Trap | Consequence | Fix |
+5. **Performance & Security Notes**
+   - only apply repo-specific mitigations where evidenced
+6. **Migration Strategy (Incremental)**
+   - uninstall dep (if safe)
+   - file-by-file replacements
+   - script/CI updates grounded in scripts
+   - verification plan (tests/typecheck/smoke/perf baseline)
 
-4. **Performance & Security Notes**
+## Examples
 
-- Runtime overhead considerations (allocations, buffering vs streaming, connection pooling)
-- Security risks (path traversal, injection, SSRF, env handling, credential leaks)
-- Concrete mitigations and where to apply them in this repo (only where evidenced)
+### Evidence Ledger Entry Example (shape only)
 
-5. **Migration Strategy (Incremental)**
-   Step-by-step plan:
+- **Dep:** `uuid@^9.0.0`
+  - **Usage:** `src/id.ts:1-12`
+  - **Symbols:** `v4 as uuidv4`
+  - **Excerpt (verbatim, tight):**
+    ```ts
+    import { v4 as uuidv4 } from "uuid";
+    export function newId() {
+      return uuidv4();
+    }
+    ```
+  - **Notes:** Only needs RFC4122 v4; can use `crypto.randomUUID()` in Node 24.
 
-- uninstall dependency (where safe)
-- replace patterns (file-by-file)
-- update scripts/CI (e.g., switch test runner, env loading, watch mode)
-
-Verification plan:
-
-- tests (`node --test` or existing, evidence-based)
-- typecheck
-- perf baseline (simple reproducible metric)
-- runtime smoke test commands
-
-### Final Deliverable
-
-Generate one Markdown report containing:
-
-1. Executive verdict (impact score 1–10 + biggest gotcha)
-2. Golden Path snippet
-3. Minefield table
-4. Performance & security
-5. Migration strategy (with verify steps)
-
----
-
-## Examples (format only)
-
-**Example (Menu item formatting):**
+### Menu Item Example (shape only)
 
 1. **crypto.randomUUID()**
    - **Replace:** `uuid`
-   - **Why:** lower attack surface; no dependency
-   - **Evidence:** `src/id.ts: uuidv4()` usage
-   - **Fix:** replace `v4()` with `crypto.randomUUID()` and adjust types/imports
-   - **Verify:** `npm test` + `npm run typecheck`
+   - **ROI Score:** `11/15 (AS:3, Footprint:unknown, Maint:3, Complexity:3, Runtime:2)`
+   - **Why:** `Removes dependency; native UUID is sufficient for evidenced usage.`
+   - **Evidence:** `src/id.ts:uuidv4:1-4 (see ledger)`
+   - **Fix:** `Replace import and call sites with crypto.randomUUID().`
+   - **Verify:** `Generic (no scripts evidenced)` / or list real scripts if present
 
 ## Response Format
 
-- Output Markdown only.
-- Phase 1 must include `## Extracted Evidence` with verbatim quotes/excerpts.
-- Every recommendation must include **Evidence → Fix → Verify**.
-- Do not invent file paths, usage, configs, tooling, or commands not evidenced in the repo inputs.
+- Return outputs strictly as Markdown.
+- Preserve required headings and exact phrases.
+- Include copy/paste-ready TypeScript snippets only in Phase 3B.
+- Do not invent file paths, scripts, or dependency usage. If unknown: **“Not evidenced in repo.”**

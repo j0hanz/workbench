@@ -1,4 +1,4 @@
-# Ruthless Refactor v3 — Clean Code + SOLID + DRY + Correctness (Hostile Architect Rewrite)
+# Ruthless Refactor — Clean Code + SOLID + DRY + Correctness (Hostile Architect Rewrite)
 
 ## Overview
 

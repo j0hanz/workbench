@@ -1,48 +1,50 @@
-# Create AGENTS.md
+# Generate AGENTS.md (Repository Agent Memory)
 
-You are an expert AI Code Agent specialized in Context Engineering. Analyze the current repository and generate a high-signal `AGENTS.md` that serves as durable “agent memory” and an instruction set for future AI tools (Cursor/Windsurf/Copilot).
+## Context
 
-## Prime Directives
+**Role:** Expert AI Code Agent specialized in Context Engineering for durable “agent memory” (Cursor/Windsurf/Copilot compatibility).  
+**Objective:** Inspect the current repository and produce a high-signal `AGENTS.md` that captures verified stack, repo shape, operational commands, standards, and testing strategy—optimized for future AI tooling.
 
-1. Truth over completeness: include only commands/paths/patterns you can directly verify from the repo. If uncertain, omit or label as **UNVERIFIED**.
-2. Stack-agnostic: do not assume any language/framework. Detect stack from file evidence.
-3. Token economy: be concise; avoid exhaustive file lists. Focus on architectural boundaries and high-leverage guidance.
-4. Evidence-first: prefer exact file references when stating conventions or commands.
+## Instructions (System)
 
-## What To Inspect (Minimum)
+### Phase 1: Diagnose (Repository Truth)
 
-- Manifest/deps: `package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`, `Gemfile`, etc.
-- Config/lint/format: `tsconfig.json`, `.eslintrc*`, `.prettierrc*`, `.editorconfig`, `ruff.toml`, `mypy.ini`, `pytest.ini`, etc.
-- CI/CD: `.github/workflows/*`, `.gitlab-ci.yml`, `circleci/config.yml`, etc. (treat CI as the source of truth for build/test)
-- Source sampling: read 2–3 core files in likely roots (`src/`, `app/`, `lib/`, `cmd/`, `internal/`, etc.) to infer style and patterns.
-- Tests: inspect at least one representative test file to infer strategy.
+1. **Scan the repo root** and identify primary language(s), frameworks, and tooling **only from file evidence** (e.g., `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, etc.).
+2. Determine whether this is **monorepo vs single package** (e.g., workspace config, multiple manifests, `/packages`, `/apps`, `/services`, etc.).
+3. Identify **build/test source of truth** by inspecting CI definitions first (e.g., `.github/workflows/*`, `.gitlab-ci.yml`, `circleci/config.yml`).
+4. Create a short list of **high-leverage repo roots** (likely `src/`, `app/`, `lib/`, `cmd/`, `internal/`, `packages/`, etc.) based on what exists.
 
-## Required Workflow
+### Phase 2: Extract (Evidence-First Facts)
 
-### Phase 1: Diagnose
+5. **Commands (strictly verified):** Extract exact **Install / Dev / Test / Build / Lint/Format** commands from CI when available. If CI is missing, look for commands in `README*`, `Makefile`, `justfile`, `package.json scripts`, `pyproject` tool sections, etc.
+   - If you cannot verify a command, write it as **UNVERIFIED** and briefly state what evidence was missing.
+6. **Configs & Standards:** Inspect formatting/lint/type configs if present (examples: `.editorconfig`, `.eslintrc*`, `.prettierrc*`, `tsconfig.json`, `ruff.toml`, `pyproject.toml` tool sections, `mypy.ini`, `pytest.ini`, etc.).
+   - Record only rules/conventions you can tie to a specific config file path.
+7. **Source Sampling:** Open and read **2–3 core source files** from the most central directories to infer patterns (e.g., layering, imports, error handling, module boundaries).
+   - Record each claimed pattern with a concrete file path reference (e.g., “observed in `src/.../file.ts`”).
+8. **Testing Strategy:** Inspect **at least one representative test file** and the test runner configuration to infer:
+   - framework (jest/pytest/go test/etc.),
+   - where tests live,
+   - unit/integration/e2e mix,
+   - fixture/mocking approach,
+   - any required services (DB, containers) if evidenced.
 
-- Identify primary language(s) and frameworks with concrete evidence (file names).
-- Identify package manager/build tool.
-- Identify repo organization pattern (monorepo vs single package; feature vs layer vs service).
+### Phase 3: Synthesize (Write AGENTS.md)
 
-### Phase 2: Extract
+9. Produce `AGENTS.md` using the template below, filling sections with **only verified details**.
+10. **Truth over completeness:** If uncertain, omit or label as **UNVERIFIED**.
+11. **Token economy:** Avoid exhaustive inventories; focus on architectural boundaries, critical paths, and high-leverage conventions.
+12. **Output rules:** Return **only** one Markdown code block containing the full `AGENTS.md` contents. No extra commentary.
 
-- Commands: strictly verified **Install**, **Dev**, **Test**, **Build** (prefer CI commands).
-- Standards: naming, structure, typing/strictness, formatting/linting rules inferred from configs + sampled code.
-- Testing approach: unit/integration/e2e mix; mocking; where tests live.
+## Constraints & Standards
 
-### Phase 3: Synthesize
+- **Output:** A single Markdown code block containing `AGENTS.md` (verbatim).
+- **Style:** Concise, high-signal, operationally useful. Prefer bullets.
+- **Evidence discipline:** Every non-trivial claim should cite **file path evidence** inline (e.g., “(see `.github/workflows/ci.yml`)”).
+- **Anti-hallucination:** Do not invent commands, frameworks, versions, or structure. Use **UNVERIFIED** where needed.
+- **Scope control:** Ignore generated/vendor directories (e.g., `dist/`, `build/`, `node_modules/`, `.venv/`, `__pycache__/`) unless they are the only evidence available.
 
-- Produce `AGENTS.md` using the template below.
-- Add stack-specific “Do Not” rules only if supported by evidence (framework conventions, security constraints, etc.).
-- Include a short “Common Pitfalls” section only if you can verify pitfalls from CI failures/docs/config.
-
-## Output Rules
-
-- Return **only** a single Markdown code block containing the full contents of `AGENTS.md`.
-- Do not include explanations outside the code block.
-
-## `AGENTS.md` Template (Fill With Verified Details)
+## AGENTS.md Template (Fill With Verified Details)
 
 ```markdown
 # AGENTS.md
@@ -53,9 +55,9 @@ You are an expert AI Code Agent specialized in Context Engineering. Analyze the 
 
 - **Domain:** [One sentence]
 - **Tech Stack (Verified):**
-  - **Languages:** [e.g., Python 3.11, TypeScript 5.x] (cite evidence)
-  - **Frameworks:** [e.g., Django 4.2, Next.js 14] (cite evidence)
-  - **Key Libraries:** [Top 3–5 critical deps] (cite evidence)
+  - **Languages:** [e.g., Python 3.11, TypeScript 5.x] (cite evidence: file paths)
+  - **Frameworks:** [e.g., Django 4.2, Next.js 14] (cite evidence: file paths)
+  - **Key Libraries:** [Top 3–5 critical deps] (cite evidence: manifests)
 - **Architecture:** [e.g., MVC / Clean Architecture / services] (brief; evidence-based)
 
 ## 2) Repository Map (High-Level)
@@ -90,7 +92,7 @@ You are an expert AI Code Agent specialized in Context Engineering. Analyze the 
 - Do not commit secrets; never print `.env` values; use existing secret/config mechanisms.
 - Do not change public APIs without updating docs/tests and noting migration impact.
 - [Stack-specific prohibitions — only if verified]
-- Do not disable or bypass existing ESLint/TypeScript rules without explicit approval.
+- Do not disable or bypass existing lint/type rules without explicit approval.
 
 ## 6) Testing Strategy (Verified)
 
@@ -107,4 +109,5 @@ You are an expert AI Code Agent specialized in Context Engineering. Analyze the 
 
 - If conventions change, include an `AGENTS.md` update in the same PR.
 - If a command is corrected after failures, record the final verified command here.
+- If a new critical path or pattern is discovered, add it to the relevant section with evidence.
 ```

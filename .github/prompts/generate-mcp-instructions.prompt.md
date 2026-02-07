@@ -1,130 +1,156 @@
-# Repo-Verified MCP Agent Instructions Generator (MCP Server)
+# Generate MCP instructions.md + integration snippet
 
-## Overview
+## Context
 
 **Role:** Expert MCP Architect + Agentic Workflow Designer  
-**Stack:** Auto-detect from repository (Node/TS/JS vs Python vs Go; MCP SDK flavor)
+**Objective:** Produce a concise (<2KB) `instructions.md` that teaches an AI agent how to use _this specific_ MCP server effectively, based strictly on repository evidence, and output the exact code snippet needed to expose those instructions in the server.
 
-## Objective
+## Instructions (System)
 
-You must produce a concise (<2KB) `instructions.md` that teaches an AI agent how to use _this specific MCP server_ effectively, based **strictly** on **repository evidence**, and provide the **exact** code snippet needed to expose those instructions in the server.
+Execute in phases: **1) Raw Data Extraction 2) Data Processing 3) Final Output Generation**
 
-**Execute in phases: 1) Raw Data Extraction 2) Data Processing 3) Final Output Generation.**
+### Phase 1 — Forensic Discovery (Repository-Backed)
 
-## Standards & Constraints
+Scan the workspace and maintain an internal **Evidence Notes** log with:
 
-**Transparency (Mode C):** During your work, maintain an internal “Evidence Notes” log (file paths + line ranges + short quotes). Do **NOT** output it unless explicitly requested.
+- **file path**
+- **line range(s)**
+- **short quote(s)**
 
-- **No invention:** Do not invent tools, workflows, file paths, commands, IDs, URIs, capabilities, or names.
-- **Evidence-bound:** Only include details you can verify in-repo. If uncertain, omit or label **UNVERIFIED**.
-- **Never guess IDs/URIs:** Always list/search first; explicitly state this rule in `instructions.md`.
-- **Tool safety:** Classify tools as **Read** (no side effects) vs **Write** (side effects). If no write tools exist, do not describe write workflows.
-- **Do not dump JSON schemas:** Focus on practical behavior, constraints, pitfalls, and safe usage patterns.
-- **Size limit:** `instructions.md` must be **<2KB** (treat as ~2048 bytes UTF-8). Tight, high-signal prose.
-- **Integration snippet:** Choose **exactly one** integration approach based on detected runtime/framework used by the repo:
-  - TypeScript `@modelcontextprotocol/sdk` high-level `McpServer` → expose Resource `internal://instructions` as `text/markdown`
-  - Python `FastMCP` → constructor injection `FastMCP(..., instructions=open(...).read())`
-  - Python low-level SDK → implement resource listing + reader for `internal://instructions`
-  - **Do not** include code for frameworks not used by this repo.
+**Do NOT output Evidence Notes unless explicitly requested.**
 
-## Phase 1 — Forensic Discovery (Repository-Backed)
+Extract and evidence the following (or record “Not evidenced in repo.”):
 
-Scan the workspace and record evidence (path + line range) for each item:
-
-1. **Runtime:** Node (TS/JS) vs Python vs Go
+1. **Runtime detection** (Node TS/JS vs Python vs Go)
    - Evidence targets: `package.json`, `tsconfig.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, etc.
-2. **SDK framework:** low-level vs high-level (`McpServer` / `FastMCP`)
-   - Evidence targets: server entry file(s), imports, initialization patterns.
-3. **Tool inventory:** list every tool, classify as **Read** or **Write**
-   - Evidence targets: tool registration code; any `resources`, `prompts`, handlers.
-4. **Implicit workflows:** infer safe tool-chains from `examples/`, `tests/`, docs, scripts
-   - Evidence targets: `examples/*`, `test/*`, `docs/*`, `README*`, `scripts/*`.
 
-Rules while extracting:
+2. **SDK/framework flavor** (MCP low-level vs high-level, e.g., TS `McpServer` vs Python `FastMCP`)
+   - Evidence targets: server entry files, imports, initialization patterns, server construction, handlers.
 
-- If a required artifact is missing, record **“Not evidenced in repo.”**
-- If multiple entrypoints exist, choose the one that appears to be the actual server runtime based on scripts/exports and usage.
+3. **Tool inventory** — list every tool and classify each as:
+   - **READ** (no side effects)
+   - **WRITE** (side effects)
+   - Evidence targets: tool registration code, handler implementations, any resources/prompts.
 
-## Phase 2 — Synthesize Practical Agent Guidance
+4. **Resources and prompts**
+   - Any resource URIs, prompt names, resource listing/reader handlers.
+   - Never guess IDs/URIs; only use those evidenced in code.
+
+5. **Entrypoint determination**
+   - If multiple entrypoints exist, choose the actual server runtime based on scripts/exports/usage patterns (e.g., `package.json` scripts, module exports, CLI docs).
+
+6. **Implicit workflows**
+   - Infer safe tool-chains from `examples/`, `tests/`, `docs/`, `README*`, `scripts/*`.
+   - Only describe workflows that are supported by evidenced tools/resources.
+
+### Phase 2 — Synthesize Practical Agent Guidance (Evidence-Only)
 
 Using only verified tools/resources/prompts:
 
-- Identify the server’s **domain** and **primary resources** (1 sentence + short list).
-- Build 1–2 **Golden Path** workflows representing how an agent should use the server (only using tools that exist).
-- For each tool, extract only the **nuances**:
-  - key required/format constraints
-  - side effects (if any) + when to ask user confirmation
-  - common failure modes and remediation (list/search first, narrower queries, etc.)
-- Capture error-handling strategy only if repo-verified (retries/backoff/timeouts); otherwise omit.
+1. Identify the server’s **domain** and **primary resources** (1 sentence + short list).
+2. Build **1–2 “Golden Path” workflows** that an agent should follow (only using tools that exist).
+3. For each tool, capture only high-signal nuances:
+   - required fields / formats / constraints
+   - side effects + when to require user confirmation
+   - common failure modes + remediation (e.g., “list/search first”, narrower queries)
+4. Include error-handling strategy only if explicitly evidenced (timeouts, retries, backoff); otherwise omit.
 
-## Phase 3 — Author `instructions.md` (Exact Structure)
+### Phase 3 — Author `instructions.md` (Exact Structure, <2KB)
 
-Write `instructions.md` using **ONLY verified details** and the **exact** structure below. Keep it <2KB.
+Write `instructions.md` using ONLY verified details and the exact structure below. Keep it **<2KB (~2048 bytes UTF-8)**. If you’re close to the limit, tighten wording.
 
-```markdown
-# {Server Name} Instructions
+Use this exact structure:
 
-<!-- path: {verified repo path for instructions.md} -->
+---
 
-> Guidance for the Agent: These instructions are available as a resource (`internal://instructions`) or prompt (`get-help`). Load them when you are unsure about tool usage.
+# {SERVER NAME} INSTRUCTIONS
 
-## 1. Core Capability
+These instructions are available as a resource (internal://instructions) or prompt (get-help). Load them when unsure about tool usage.
 
-- **Domain:** [One sentence summary]
-- **Primary Resources:** [Key data types the server deals with]
+---
 
-## 2. The "Golden Path" Workflows (Critical)
+## CORE CAPABILITY
 
-_Describe the standard order of operations using ONLY tools that exist._
+- Domain: [One sentence summary]
+- Primary Resources: [Key data types the server deals with]
+- Tools: [tool-name] (READ-ONLY or WRITE)
 
-### Workflow A: [Name]
+---
 
-1. Call `{tool}` ...
-2. Call `{tool}` ...
-   > Constraint: Never guess IDs/URIs. Always list/search first.
+## THE "GOLDEN PATH" WORKFLOWS (CRITICAL)
 
-### Workflow B: [Name] (Only if supported by tools)
+### WORKFLOW A: [NAME]
 
-1. ...
+- Call {tool} with: { ... }
+- Read the "field" from response.
+- If [condition]: [action].
+  NOTE: Never guess IDs/URIs. Always use the ones returned.
 
-## 3. Tool Nuances & Gotchas
+### WORKFLOW B: [NAME] (only if supported by tools)
 
-_Do NOT repeat JSON schema. Focus on behavior and pitfalls._
+- Call {tool} ...
+- ...
 
-- **`{tool_name}`**
-  - **Purpose:** [1 line]
-  - **Inputs:** [Only key constraints: formats, required fields, limits]
-  - **Side effects:** [None | Describe impact; require user confirmation if destructive]
-  - **Latency/limits:** [If implied by code/tests; otherwise omit]
-  - **Common failure modes:** [What errors look like + what to do]
+---
 
-## 4. Error Handling Strategy
+## TOOL NUANCES & GOTCHAS
 
-- [Repo-verified retry/backoff or common errors]
-- [Fallback steps (search/list, narrower queries, etc.)]
-```
+{tool_name}
 
-## Phase 4 — Integration Snippet (Repo-Detected)
+- Purpose: [1 line]
+- Input: [Only key constraints: formats, required fields, limits]
+- Side effects: [None | Describe impact; require user confirmation if destructive]
+- Limits: [If implied by code/tests; otherwise omit]
+- Common failure modes: [What errors look like + what to do]
 
-Output the **exact** code snippet that exposes `instructions.md` per repo conventions:
+---
 
-- Use paths consistent with repo patterns (root vs `src/`), proven by evidence.
-- For TypeScript `McpServer`: register `internal://instructions` resource with `text/markdown` content loaded from the verified file path.
-- For Python FastMCP: inject `instructions=open(...).read()` into the verified `FastMCP(...)` construction site.
-- For Python low-level: implement list/read for `internal://instructions` only, matching existing server architecture.
+## ERROR HANDLING STRATEGY
 
-## Final Output (STRICT)
+- {ERROR_CODE}: [Description]. [Action].
+- {ERROR_CODE}: [Description]. [Action].
 
-Return ONLY the following, in order:
+---
 
-1. A single **Markdown** code block containing the full contents of `instructions.md`
-   - Include the verified repo path in the first heading line comment: `<!-- path: ... -->`
+## RESOURCES
 
-2. A single code block with the exact integration snippet for this repo.
+- {uri}: [Description]
 
-3. A short verification checklist (3–6 bullets) confirming:
-   - No invented tools/workflows
-   - `<2KB` markdown
-   - Read vs Write classified
-   - Evidence-based commands/URIs
-   - No schema dumping
+---
+
+**Rules inside `instructions.md`:**
+
+- Explicitly state: **Never guess IDs/URIs; always list/search first and use returned identifiers.**
+- Do not describe write workflows if no WRITE tools exist.
+- No schema dumps; focus on practical usage, constraints, pitfalls, safe patterns.
+- If uncertain: omit or label **UNVERIFIED** (prefer omit).
+
+### Phase 4 — Integration Snippet (Repo-Detected, Exactly One Approach)
+
+Output the exact code snippet that exposes `instructions.md` per the detected repo runtime/framework:
+
+Choose exactly ONE (based on evidence):
+
+- **TypeScript @modelcontextprotocol/sdk `McpServer`:** expose `internal://instructions` as a Resource with `text/markdown` content loaded from the verified file path.
+- **Python `FastMCP`:** inject `instructions=open(...).read()` into the evidenced `FastMCP(...)` construction site.
+- **Python low-level SDK:** implement resource listing + reader for `internal://instructions` only, matching existing architecture.
+
+Constraints:
+
+- Use paths consistent with repo conventions (root vs `src/`), proven by evidence.
+- Do NOT include code for frameworks not used by this repo.
+- Do NOT invent any filenames, tool names, URIs, prompts, commands, or behaviors.
+
+## Constraints & Standards
+
+- **Output:** Strictly return (in order):
+  1. A single Markdown code block containing the full contents of `instructions.md`
+  2. A single code block with the exact integration snippet for this repo
+  3. A short verification checklist (3–6 bullets) confirming:
+     - No invented tools/workflows
+     - `<2KB` markdown
+     - READ vs WRITE classified
+     - Evidence-based commands/URIs
+     - No schema dumping
+- **Style:** Tight, high-signal prose; operational guidance over theory.
+- **Anti-Hallucination:** Do not invent data; if missing, write “Not evidenced in repo.” or omit; label **UNVERIFIED** only when absolutely necessary.

@@ -73,6 +73,7 @@ Output complete, copy-paste-ready:
 - Include shebang if CLI/bin execution is expected: `#!/usr/bin/env node` as the first line.
 - Wire the chosen transport (stdio or Streamable HTTP).
 - No stdout pollution for stdio servers (`console.error` only).
+- Stdio framing: JSON-RPC messages are newline-delimited; no embedded newlines.
 - Add SIGINT/SIGTERM shutdown handlers.
 - Call `registerAllTools(server)`.
 
@@ -83,6 +84,7 @@ Output complete, copy-paste-ready:
 - Add `.min()`/`.max()` on strings/arrays/numbers; use `z.enum` where appropriate.
 - Tool returns both `content` (JSON string) and `structuredContent` (object).
 - Tool handler uses try/catch; errors return `isError: true` via `createErrorResponse`.
+- If output schemas are expressed as JSON Schema, default dialect is 2020-12 when `$schema` is omitted.
 
 ## Step 6.5 — Optional: Resource Template (Only If Requested)
 
@@ -132,6 +134,7 @@ Include:
 14. Prefer tool execution errors over protocol errors for invalid tool inputs.
 15. Tool names: 1–128 chars, `[A-Za-z0-9_.-]` only.
 16. Tools with no params use `z.strictObject({})`.
+17. JSON Schema dialect defaults to 2020-12 if `$schema` is absent.
 
 ## Output Requirements
 

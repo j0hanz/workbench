@@ -4,15 +4,34 @@ name: "mcp-typescript"
 tools:
   [
     "vscode",
-    "execute/runInTerminal",
+    "execute",
+    "read/problems",
+    "read/readFile",
+    "read/terminalSelection",
+    "read/terminalLastCommand",
+    "agent",
+    "edit/createDirectory",
+    "edit/createFile",
     "edit/editFiles",
+    "search/changes",
     "search/codebase",
+    "search/searchResults",
+    "search/usages",
+    "brave-search/brave_web_search",
     "context7/*",
+    "github/get_file_contents",
+    "github/search_code",
+    "github/search_issues",
+    "github/search_repositories",
+    "superfetch/*",
+    "memdb/*",
+    "todokit/*",
     "fs-context/*",
     "thinkseq/*",
-    "todokit/*",
   ]
 ---
+
+# MCP TypeScript Expert Agent
 
 ## Related Files
 
@@ -51,6 +70,9 @@ You build MCP servers using:
 - JSON-RPC clients SHOULD send `Accept: application/json, text/event-stream`.
 - Sessions (if used): client sends `MCP-Session-Id`; expired sessions → **404** and client must re-initialize.
 - SSE resume uses **GET + Last-Event-ID**.
+- Stdio JSON-RPC messages are newline-delimited and **MUST NOT** contain embedded newlines.
+- Tool `inputSchema` is required (use `z.strictObject({})` for no-arg tools).
+- JSON Schema defaults to **2020-12** when `$schema` is omitted.
 - Tool input validation errors should usually be reported as **tool execution errors** (so the model can self-correct), not protocol errors.
 - Tool names SHOULD be 1–128 chars and match `[A-Za-z0-9_.-]` (no spaces).
 - CLI entrypoint: `src/index.ts` begins with `#!/usr/bin/env node` as the first line.
@@ -114,6 +136,7 @@ Use `thinkseq` for:
 6. Session issues → ensure session routing and header reading (`req.headers['mcp-session-id']`).
 7. Protocol/version issues → verify `MCP-Protocol-Version` handling and Accept headers.
 8. Validate with: `npx @modelcontextprotocol/inspector`.
+9. Stdio framing → ensure newline-delimited JSON-RPC, no embedded newlines.
 
 ## Patterns
 

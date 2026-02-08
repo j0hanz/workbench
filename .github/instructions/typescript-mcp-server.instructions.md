@@ -1,6 +1,5 @@
 ---
 description: "Rules for building MCP servers with TypeScript SDK"
-applyTo: "**/*.ts, **/*.js, **/package.json"
 ---
 
 ## Related Files
@@ -74,6 +73,8 @@ If executed via `node dist/index.js` or exposed via `bin` in `package.json`:
 - Use `z.strictObject()` for all object schemas (reject unknown fields).
 - Add `.describe()` to every parameter for LLM guidance.
 - Add bounds: `.min()`/`.max()` for strings/arrays/numbers; use `z.enum([...])` for constrained values.
+- For no-arg tools, use `z.strictObject({})` to accept only empty objects.
+- JSON Schema dialect defaults to **2020-12** when `$schema` is omitted.
 
 ### Output Shape (Recommended Baseline)
 
@@ -161,6 +162,7 @@ Annotations guide LLM behavior; they are not authorization.
 
 - Never write non-MCP output to **stdout** (it corrupts JSON-RPC).
 - Use `console.error()` or protocol logging.
+- JSON-RPC messages are newline-delimited and **MUST NOT** contain embedded newlines.
 
 ### Streamable HTTP Security (CVE-2025-66414)
 
@@ -194,6 +196,11 @@ Annotations guide LLM behavior; they are not authorization.
 - If supported: declare `capabilities.tasks`.
 - Honor `execution.taskSupport` (`required|optional|forbidden`) for tools.
 - Task cancellation uses `tasks/cancel` (not `notifications/cancelled`).
+
+## Logging (Optional)
+
+- Declare `capabilities.logging` if sending log notifications.
+- Use `notifications/message` for structured log delivery; avoid secrets/PII in logs.
 
 ## Capabilities & UX
 

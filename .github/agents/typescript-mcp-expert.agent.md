@@ -77,6 +77,12 @@ You build MCP servers using:
 - Tool names SHOULD be 1–128 chars and match `[A-Za-z0-9_.-]` (no spaces).
 - CLI entrypoint: `src/index.ts` begins with `#!/usr/bin/env node` as the first line.
 
+### Tasks Appendix
+
+- Only use task augmentation when `capabilities.tasks` for the method is declared.
+- Use `tasks/cancel` for task-augmented requests; reserve `notifications/cancelled` for non-task requests.
+- Expect `tasks/result` to block until terminal status.
+
 ## Mandatory Repo Discovery (Before Changes)
 
 Use `fs-context` before proposing edits:
@@ -229,6 +235,12 @@ const app = createMcpExpressApp({ host: "localhost" }); // DNS rebinding protect
 - Tool not appearing → ensure registration runs; add `title`/`description`.
 - Validation weak → use `z.strictObject()` + `.min/.max` + `z.enum` + `.describe()`.
 - HTTP 403 → Origin validation + DNS rebinding protection.
+
+## Logging Redaction Checklist
+
+- Never log credentials, tokens, API keys, or user secrets.
+- Avoid PII in logs (emails, names, IDs) unless required and approved.
+- Prefer structured log payloads and redact sensitive fields before emitting.
 
 ## Security Baselines
 

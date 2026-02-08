@@ -197,6 +197,12 @@ Annotations guide LLM behavior; they are not authorization.
 - Honor `execution.taskSupport` (`required|optional|forbidden`) for tools.
 - Task cancellation uses `tasks/cancel` (not `notifications/cancelled`).
 
+### Tasks Appendix
+
+- Only augment requests with tasks when the peer declares the matching `capabilities.tasks` entry.
+- `tasks/result` blocks until terminal status (`completed|failed|cancelled`).
+- Use `notifications/cancelled` for non-task requests only.
+
 ## Logging (Optional)
 
 - Declare `capabilities.logging` if sending log notifications.

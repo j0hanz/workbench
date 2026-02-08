@@ -94,6 +94,12 @@ Output complete, copy-paste-ready:
 
 - Provide prompts only if requested; validate args with Zod; completions only where safe.
 
+## Step 6.9 — Optional: Tasks Appendix (Only If Requested)
+
+- If tasks are enabled, declare `capabilities.tasks` and honor `execution.taskSupport`.
+- Use `tasks/cancel` for task cancellation; keep `notifications/cancelled` for non-task requests.
+- Use `tasks/result` for deferred results and block until terminal status.
+
 ## Step 7 — Generate Helpers (`src/lib/*`)
 
 - `errors.ts`: `getErrorMessage` + `createErrorResponse(code, message, result?)`
@@ -135,6 +141,13 @@ Include:
 15. Tool names: 1–128 chars, `[A-Za-z0-9_.-]` only.
 16. Tools with no params use `z.strictObject({})`.
 17. JSON Schema dialect defaults to 2020-12 if `$schema` is absent.
+
+## Schema Validation Checklist
+
+- `inputSchema` present for every tool (use `z.strictObject({})` for no-arg tools).
+- Object schemas are `z.strictObject()` and reject unknown fields.
+- Every field has `.describe()` and reasonable `.min()`/`.max()` bounds.
+- JSON Schema without `$schema` uses the 2020-12 dialect.
 
 ## Output Requirements
 

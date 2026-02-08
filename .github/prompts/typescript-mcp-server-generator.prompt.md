@@ -5,158 +5,106 @@ description: "Generate production-ready MCP servers in TypeScript"
 > **Related Files:**  
 > [typescript-mcp-server.instructions.md](../instructions/typescript-mcp-server.instructions.md) for mandatory rules | [typescript-mcp-expert.agent.md](../agents/typescript-mcp-expert.agent.md) for debugging workflows
 
-# Generate TypeScript MCP Server (SDK v1.x) — Prompt
+# Generate TypeScript MCP Server (SDK v1.x) Project
 
-You are an MCP TypeScript engineer. Generate a complete, production-ready MCP server using:
+## Context
 
-- `@modelcontextprotocol/sdk` **v1.x**
-- TypeScript **5.9+** (strict)
-- Node **>=20**
-- Zod **v4.x**
+**Role:** Senior TypeScript/Node.js MCP Server Engineer (MCP Protocol 2025-11-25), SDK Integrator, and Project Scaffolding Specialist  
+**Objective:** Produce a complete, production-ready MCP server project in TypeScript using `@modelcontextprotocol/sdk` v1.x, Node >= 20, TypeScript 5.9+ (strict), and Zod v4.x, following the required structure, validation rules, error handling patterns, and transport requirements. If critical choices are missing (transport and/or server type), ask the user and stop.
 
-## Step 1 — Confirm SDK Line + Transport (Ask If Missing)
+## Instructions (System — Execute in phases: 1) Extraction 2) Processing 3) Output
 
-- Use SDK **v1.x** (v2 is pre-alpha; stable Q1 2026; splits into `@modelcontextprotocol/server` + `@modelcontextprotocol/client`).
-- Ask the user to choose **one** transport if not explicitly specified:
-  - **stdio** (local/CLI)
-  - **Streamable HTTP** (remote/multi-client; recommended)
-  - **HTTP+SSE** (legacy compatibility only)
+1. **Extraction (ask if missing; do not generate code yet if unanswered)**
+   - Confirm the server uses `@modelcontextprotocol/sdk` **v1.x** (explicitly note not to use v2 packages).
+   - Determine whether the user specified a transport. If not, ask them to choose **exactly one**:
+     - `stdio` (local/CLI)
+     - `Streamable HTTP` (remote/multi-client; recommended)
+     - `HTTP+SSE` (legacy compatibility only)
+   - Determine whether the user specified a server type. If not, ask them to choose **one**:
+     - **Data Access** (filesystem/db) → set `readOnlyHint: true`
+     - **API Integration** (GitHub/Slack) → set `openWorldHint: true` + timeouts + rate limiting
+     - **DevOps** (Docker/K8s) → set `destructiveHint: true` + confirmation/elicitation patterns
+     - **AI/ML** (embeddings/sampling) → sampling gated by client capabilities
+   - If either transport or server type is missing, respond with _only the necessary questions_ (no code, no file tree), then stop.
 
-### Streamable HTTP Requirements (If Chosen)
+2. **Processing (once transport + server type are known)**
+   - Select initial tools **only** consistent with the chosen server type (no extra/invented tools).
+   - Apply **all** strict generation rules:
+     1. All Zod object schemas use `z.strictObject()`.
+     2. Every schema field uses `.describe()`.
+     3. Strings/arrays/numbers have `.min()` and `.max()` constraints.
+     4. Every tool returns both `content` (JSON string) and `structuredContent` (object).
+     5. `content` contains JSON for backwards compatibility.
+     6. Every tool handler uses try/catch; errors return `isError: true` via `createErrorResponse`.
+     7. Use `createToolResponse` and `createErrorResponse` helpers.
+     8. Every exported function has an explicit return type.
+     9. Local imports include `.js` extension (NodeNext/ESM).
+     10. No `console.log` in stdio servers; use `console.error` only.
+     11. Annotations/hints are not security boundaries.
+     12. Sampling/elicit only if client capabilities support it.
+     13. Schemas live only in `src/schemas/inputs.ts` and `src/schemas/outputs.ts`.
+     14. Prefer tool execution errors over protocol errors for invalid tool inputs.
+     15. Tool names: 1–128 chars, regex `[A-Za-z0-9_.-]+`.
+     16. No-param tools use `z.strictObject({})`.
+     17. JSON Schema dialect defaults to 2020-12 if `$schema` is absent.
+   - Implement transport-specific requirements:
+     - **stdio**
+       - JSON-RPC messages are newline-delimited; ensure no embedded newlines in framed messages.
+       - Avoid stdout pollution; log only to stderr.
+     - **Streamable HTTP** (if chosen)
+       - DNS rebinding protection: use `createMcpExpressApp()` (preferred) or `hostHeaderValidation`.
+       - Validate `Origin` header **if present**; invalid → HTTP 403 (per spec).
+       - MCP endpoint supports **POST** and **GET** (GET returns SSE or 405; not 404).
+       - Clients POST JSON-RPC with `Accept: application/json, text/event-stream`.
+       - Enforce `MCP-Protocol-Version: <negotiated>` on subsequent requests; invalid/unsupported → 400.
+       - Bind localhost for local usage; require auth for remote/public usage (implement a simple auth hook or middleware).
+       - Sessions only if explicitly needed: `MCP-Session-Id` read from `req.headers['mcp-session-id']`.
+     - **HTTP+SSE**
+       - Implement only for compatibility; clearly label as legacy.
+   - Generate the default project structure unless the user requested a different one:
+     ```text
+     src/
+     ├── index.ts
+     ├── tools/
+     │   ├── index.ts
+     │   └── {name}.ts
+     ├── schemas/
+     │   ├── inputs.ts
+     │   └── outputs.ts
+     └── lib/
+         ├── errors.ts
+         ├── tool_response.ts
+         └── types.ts
+     tests/
+     README.md
+     package.json
+     tsconfig.json
+     eslint.config.mjs
+     ```
 
-- DNS rebinding protection: use `createMcpExpressApp()` (preferred) or `hostHeaderValidation`.
-- Validate `Origin` **if present**; invalid → **HTTP 403** (spec 2025-11-25).
-- MCP endpoint supports **POST** and **GET** (GET returns SSE or **405**, not 404).
-- Clients POSTing JSON-RPC send `Accept: application/json, text/event-stream`.
-- Clients send `MCP-Protocol-Version: <negotiated>` on subsequent HTTP requests; invalid/unsupported → **400**.
-- Bind localhost for local use; require auth for remote/public use.
-- Stateful sessions (only if explicitly needed): use `MCP-Session-Id` (read as `req.headers['mcp-session-id']` in Node).
+3. **Output (generate the full project)**
+   - Output the complete project as a **file tree** with **one code block per file**, copy/paste-ready:
+     - `package.json` (ESM; scripts for dev/build/test; Node>=20 engines; inspector support)
+     - `tsconfig.json` (NodeNext; strict; `noUncheckedIndexedAccess`; `verbatimModuleSyntax`; `isolatedModules`)
+     - `eslint.config.mjs` (strict TS rules; unused imports; explicit return types)
+     - `src/index.ts` (transport wiring; SIGINT/SIGTERM shutdown; registerAllTools; shebang if CLI expected)
+     - `src/tools/index.ts` + `src/tools/{tool}.ts` (one real tool end-to-end + template)
+     - `src/schemas/inputs.ts`, `src/schemas/outputs.ts`
+     - `src/lib/errors.ts`, `src/lib/tool_response.ts`, `src/lib/types.ts` (optional but include if referenced)
+     - `tests/{tool}.test.ts` using `node:test` + `node:assert/strict` with:
+       - tool registration test
+       - schema validation test
+       - optional deterministic happy-path test
+     - `README.md` including:
+       - install
+       - run dev/build/test
+       - inspector usage (stdio/http)
+       - MCP client config snippet
+   - Keep outputs deterministic and internally consistent (names, imports, scripts, file paths).
+   - Do **not** include chain-of-thought; reason silently and present only final artifacts.
 
-## Step 2 — Identify Server Type (Ask If Needed)
+## Constraints & Standards
 
-Determine server type and pick initial tools accordingly (no tool invention beyond the chosen type):
-
-- **Data Access** (filesystem/db) → `readOnlyHint: true`
-- **API Integration** (GitHub/Slack) → `openWorldHint: true` + rate limiting + timeouts
-- **DevOps** (Docker/K8s) → `destructiveHint: true` + elicitation/confirmation
-- **AI/ML** (embeddings/sampling) → sampling gated by client capabilities
-
-## Step 3 — Generate Project Structure (Default)
-
-Use this structure unless the user requests otherwise:
-
-```text
-src/
-├── index.ts               # Entrypoint: shebang, transport, shutdown
-├── tools/
-│   ├── index.ts           # registerAllTools(server)
-│   └── {name}.ts          # One tool per file
-├── schemas/
-│   ├── inputs.ts          # Zod input schemas (z.strictObject)
-│   └── outputs.ts         # Zod output schemas (DefaultOutputSchema)
-└── lib/
-    ├── errors.ts          # getErrorMessage + createErrorResponse
-    ├── tool_response.ts   # createToolResponse helper
-    └── types.ts           # Shared types (optional)
-```
-
-## Step 4 — Generate Configuration Files
-
-Output complete, copy-paste-ready:
-
-- `package.json` (ESM, build/test/dev scripts, inspector, Node>=20)
-- `tsconfig.json` (NodeNext, strict, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules`)
-- `eslint.config.mjs` (TS strict rules, unused imports, explicit return types)
-
-## Step 5 — Generate Server Entry (`src/index.ts`)
-
-- Include shebang if CLI/bin execution is expected: `#!/usr/bin/env node` as the first line.
-- Wire the chosen transport (stdio or Streamable HTTP).
-- No stdout pollution for stdio servers (`console.error` only).
-- Stdio framing: JSON-RPC messages are newline-delimited; no embedded newlines.
-- Add SIGINT/SIGTERM shutdown handlers.
-- Call `registerAllTools(server)`.
-
-## Step 6 — Generate Tool Template + One Real Tool
-
-- Implement one tool end-to-end (name determined by server type).
-- Zod input schema uses `z.strictObject()` and every field has `.describe()`.
-- Add `.min()`/`.max()` on strings/arrays/numbers; use `z.enum` where appropriate.
-- Tool returns both `content` (JSON string) and `structuredContent` (object).
-- Tool handler uses try/catch; errors return `isError: true` via `createErrorResponse`.
-- If output schemas are expressed as JSON Schema, default dialect is 2020-12 when `$schema` is omitted.
-
-## Step 6.5 — Optional: Resource Template (Only If Requested)
-
-- Provide a static resource and/or a dynamic `ResourceTemplate` example only if the user asked for resources.
-
-## Step 6.75 — Optional: Prompt Template (Only If Requested)
-
-- Provide prompts only if requested; validate args with Zod; completions only where safe.
-
-## Step 6.9 — Optional: Tasks Appendix (Only If Requested)
-
-- If tasks are enabled, declare `capabilities.tasks` and honor `execution.taskSupport`.
-- Use `tasks/cancel` for task cancellation; keep `notifications/cancelled` for non-task requests.
-- Use `tasks/result` for deferred results and block until terminal status.
-
-## Step 7 — Generate Helpers (`src/lib/*`)
-
-- `errors.ts`: `getErrorMessage` + `createErrorResponse(code, message, result?)`
-- `tool_response.ts`: `createToolResponse(structured)` that also emits JSON string to `content`
-
-## Step 8 — Generate Tests (`tests/*.test.ts`)
-
-- Use `node:test` + `node:assert/strict`.
-- Include at least:
-  - tool registration test
-  - schema validation test
-  - (optional) tool handler happy-path test if deterministic
-
-## Step 9 — Generate README.md
-
-Include:
-
-- install
-- run dev/build/test
-- inspector usage (stdio/http)
-- MCP config snippet for clients
-
-## Generation Rules (Strict)
-
-1. All Zod object schemas use `z.strictObject()`.
-2. Every field uses `.describe()`.
-3. Strings/arrays/numbers have `.min()` and `.max()` limits.
-4. Every tool returns `content` + `structuredContent`.
-5. `content` includes JSON string for backward compatibility.
-6. Every tool has try/catch; errors return `isError: true`.
-7. Use `createToolResponse` and `createErrorResponse`.
-8. Every exported function has an explicit return type.
-9. Local imports use `.js` extension.
-10. No `console.log` in stdio servers; use `console.error`.
-11. Annotations are hints, not security.
-12. Sampling/elicit only if client capabilities support it.
-13. Schemas live in `schemas/inputs.ts` and `schemas/outputs.ts`.
-14. Prefer tool execution errors over protocol errors for invalid tool inputs.
-15. Tool names: 1–128 chars, `[A-Za-z0-9_.-]` only.
-16. Tools with no params use `z.strictObject({})`.
-17. JSON Schema dialect defaults to 2020-12 if `$schema` is absent.
-
-## Schema Validation Checklist
-
-- `inputSchema` present for every tool (use `z.strictObject({})` for no-arg tools).
-- Object schemas are `z.strictObject()` and reject unknown fields.
-- Every field has `.describe()` and reasonable `.min()`/`.max()` bounds.
-- JSON Schema without `$schema` uses the 2020-12 dialect.
-
-## Output Requirements
-
-Return the full generated project as a file tree with code blocks per file:
-
-- `package.json`, `tsconfig.json`, `eslint.config.mjs`
-- `src/index.ts`
-- `src/tools/index.ts` + `src/tools/{tool}.ts`
-- `src/schemas/inputs.ts`, `src/schemas/outputs.ts`
-- `src/lib/errors.ts`, `src/lib/tool_response.ts`
-- `tests/{tool}.test.ts`
-- `README.md`
+- **Output:** Markdown file tree + fenced code blocks per file (no extra prose beyond what’s needed for clarity).
+- **Style:** Production TypeScript; strict typing; explicit return types for exports; ESM NodeNext; clean error handling.
+- **Anti-Hallucination:** Do not invent user-specific secrets, endpoints, or APIs. If required details are missing, ask and stop. If something is unknown, output `N/A` or a clearly marked placeholder.

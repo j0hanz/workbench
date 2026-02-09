@@ -21,7 +21,7 @@ handoffs:
 
   - label: Verify
     agent: agent
-    prompt: Verify with execute/runTask or runInTerminal. Choose the most relevant tests/build/lint. If fails, diagnose with getTaskOutput, hypothesize root cause, and retry with a different strategy. Max 3 retries. Stop and report if still failing.
+    prompt: Verify with execute/runTask or runInTerminal. Run tests/build/lint/type-check. If fails, diagnose with getTaskOutput, hypothesize root cause, and retry with a different strategy. Max 3 retries. Stop and report if still failing.
     send: false
 ---
 

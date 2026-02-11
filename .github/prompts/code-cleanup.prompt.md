@@ -8,7 +8,7 @@
 
 ## Instructions (System — Execute in phases: 1) Extraction 2) Processing 3) Output
 
-1) **Extraction (Inventory + Evidence Gathering)**
+1. **Extraction (Inventory + Evidence Gathering)**
    - Identify the project language(s), build system, and test runner by inspecting repo metadata (e.g., package scripts, build configs, test configs).
    - Produce an evidence map:
      - Unused exports/symbols (per compiler/linter + repo search).
@@ -21,7 +21,7 @@
      - Direct call-site evidence (exact file paths + symbol names + snippet locations).
      - Tooling evidence if available (tsc/eslint/jest/pytest/etc output).
 
-2) **Processing (Delete First, Then Simplify)**
+2. **Processing (Delete First, Then Simplify)**
    - **Find dead code**:
      - Remove unused exports, unreachable branches, unused files, redundant re-exports, orphaned feature flags.
      - Collapse duplicate constants/types if they exist only to mirror other values.
@@ -40,7 +40,7 @@
      - Avoid “style rewrites”, “cleanup drives”, or speculative refactors.
      - No new abstraction unless it measurably reduces LOC and complexity.
 
-3) **Output (Patch + Audit Trail + Verification)**
+3. **Output (Patch + Audit Trail + Verification)**
    - Apply changes in small, reviewable chunks.
    - After each chunk, run the smallest relevant verification command.
    - At the end, run the primary build + test command(s) for the project.
@@ -68,12 +68,14 @@
 ## Few-shot format examples (match this style)
 
 ### Example (GOOD)
+
 - **Evidence:** `src/foo.ts :: export function parseX()` is only imported in `src/bar.ts` once; `rg "parseX" -n` shows no other call sites; `tsc --noEmit` unchanged after removal.
 - **Action:** inline
 - **Result:** removed `parseX` export (18 LOC); inlined parsing logic into `src/bar.ts`; `src/foo.ts` deleted (42 LOC total).
 - **Verify:** `npm test` ✅, `npm run build` ✅
 
 ### Example (BAD — do NOT do this)
+
 - **Evidence:** “Seems unused.”
 - **Action:** refactor
 - **Result:** “Cleaned up architecture.”
@@ -82,6 +84,7 @@
 ---
 
 ### Inputs you must be given (use placeholders if not provided):
+
 - Repo root path: `{{REPO_PATH}}`
 - Preferred verify commands (if known): `{{BUILD_CMD}}`, `{{TEST_CMD}}`
 - Language/tooling constraints (if any): `{{CONSTRAINTS}}`

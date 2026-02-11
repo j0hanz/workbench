@@ -50,7 +50,7 @@ Execute in phases: **1) Extraction 2) Processing 3) Output**.
 
 4. **Metrics usage**
    - If diagnostics are provided: use them.
-   - If not provided: propose commands, do not pretend you ran them.
+   - If not provided: propose commands; do not pretend you ran them.
 
 **Intermediate Evidence Output (plain text, mandatory, must appear FIRST in final response):**
 
@@ -127,6 +127,8 @@ Preferred type repair patterns (use only when they pay rent):
 1. Print **Intermediate Evidence (plain text)** FIRST.
 2. Then print **VALID JSON ONLY** matching the exact schema below (no markdown, no extra keys).
 
+Rules:
+
 - Evidence → Fix → Verify per issue.
 - Never claim you ran tools. Verification steps must be commands/metrics the user can run.
 - Preserve runtime behavior by default. If a fix might alter behavior, isolate it and flag tradeoffs.
@@ -141,6 +143,14 @@ Preferred type repair patterns (use only when they pay rent):
 - high: likely perf regressions, unsafe narrowing/casts, missing boundary validation, heavy bundling issues
 - medium: maintainability drag, moderate type complexity, avoidable allocations off hot path
 - low: minor cleanliness/DX improvements with minimal impact
+
+## Constraints & Standards
+
+- **Output:** Intermediate Evidence (plain text) + Final JSON only (no markdown around JSON).
+- **Style:** Ruthless, evidence-first, concise; prioritize big wins over micro-optimizations.
+- **Anti-Hallucination:** If not in inputs, write `"unknown"` and add to `context.missing_info`. Never invent paths, commands having been executed, tool outputs, or repo structure.
+- **Behavior:** Preserve runtime behavior unless explicitly permitted; flag any potential behavior change and isolate it.
+- **Dependencies:** No new deps unless explicitly allowed.
 
 ### JSON Schema (must match exactly; no extra keys; final output is JSON only)
 
@@ -188,11 +198,3 @@ Preferred type repair patterns (use only when they pay rent):
   }
 }
 ```
-
-## Constraints & Standards
-
-- **Output:** Intermediate Evidence (plain text) + Final JSON only (no markdown around JSON).
-- **Style:** Ruthless, evidence-first, concise; prioritize big wins over micro-optimizations.
-- **Anti-Hallucination:** If not in inputs, write `"unknown"` and add to `context.missing_info`. Never invent paths, commands having been executed, tool outputs, or repo structure.
-- **Behavior:** Preserve runtime behavior unless explicitly permitted; flag any potential behavior change and isolate it.
-- **Dependencies:** No new deps unless explicitly allowed.

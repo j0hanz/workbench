@@ -7,83 +7,347 @@ description: "Rules for building MCP servers with TypeScript SDK"
 - [typescript-mcp-expert.agent.md](../agents/typescript-mcp-expert.agent.md) - Agent workflows and debugging
 - [typescript-mcp-server-generator.prompt.md](../prompts/typescript-mcp-server-generator.prompt.md) - Project scaffolding generator
 
-# TypeScript MCP Server Implementation (SDK v1.x)
+# TypeScript MCP Server Rules (SDK v1.x)
 
-## Context
+Target stack:
 
-**Role:** Senior TypeScript/Node.js Engineer + MCP SDK Integrator (MCP Protocol 2025-11-25)  
-**Objective:** Implement the user’s requested changes in an existing TypeScript MCP server codebase using `@modelcontextprotocol/sdk` v1.x, Zod v4.x, Node >=20, and TypeScript 5.9+ strict—while preserving current behavior and following the repo’s conventions.
+- `@modelcontextprotocol/sdk` **v1.x (production)**
+- Zod **v4.x**
+- Node **>=20**
+- TypeScript **5.9+** (strict)
 
-## Instructions (System)
+## Repository Convention (Default)
 
-1. **Extraction**
-   - Inspect the repository structure and existing patterns (entrypoint, transports, tool registration, schema locations, error handling).
-   - Identify the active transport(s): stdio, Streamable HTTP, or legacy HTTP+SSE.
-   - Locate current tool definitions and any shared helpers; note TS config (NodeNext/ESM, `verbatimModuleSyntax`, `noUncheckedIndexedAccess`, etc.).
+Use this structure unless the repo already has established patterns:
 
-2. **Processing**
-   - Apply the requested change set with minimal risk and minimal surface area.
-   - Follow the **Canonical Tool Pattern**: `inputSchema` + `outputSchema` (Zod v4), `structuredContent` plus JSON string in `content`, and error returns using `isError: true` (no uncaught throws).
-   - Enforce repository conventions (or adopt the default structure below if no established pattern exists):
-     ```text
-     src/
-     ├── index.ts
-     ├── tools/
-     │   ├── index.ts
-     │   └── {name}.ts
-     ├── schemas/
-     │   ├── inputs.ts
-     │   └── outputs.ts
-     └── lib/
-         ├── errors.ts
-         ├── tool_response.ts
-         └── types.ts
-     ```
-   - Ensure compatibility with MCP Streamable HTTP (Spec 2025-11-25) if applicable:
-     - MCP endpoint supports **POST** and **GET**; GET serves `text/event-stream` or returns **405** (not 404).
-     - Handle `MCP-Session-Id` correctly; expired/invalid session → **404**.
-     - Validate `MCP-Protocol-Version` on subsequent requests; invalid/unsupported → **400**.
-     - Implement DNS-rebinding protections (e.g., host binding or host header validation) and validate `Origin` when present (invalid → **403**).
-     - Do not broadcast identical JSON-RPC messages across multiple SSE streams.
-   - For stdio:
-     - Never write non-MCP output to stdout; use stderr for logs.
-     - Ensure JSON-RPC messages are newline-delimited with no embedded newlines.
-   - Wire clean shutdown in the entrypoint:
-     ```ts
-     process.on("SIGTERM", () => process.exit(0));
-     process.on("SIGINT", () => process.exit(0));
-     ```
+```text
+src/
+├── index.ts              # Entrypoint: shebang, transport wiring, shutdown
+├── server.ts             # McpServer instance, capability declaration
+├── tools/
+│   ├── index.ts          # registerAllTools(server)
+│   └── {name}.ts         # One tool per file
+├── resources/
+│   └── index.ts          # Resource registration (static + templates)
+├── prompts/
+│   └── index.ts          # Prompt registration
+├── schemas/
+│   ├── inputs.ts         # Zod input schemas (z.strictObject)
+│   └── outputs.ts        # Zod output schemas
+└── lib/
+    ├── errors.ts         # getErrorMessage + error helpers
+    ├── tool-response.ts  # createToolResponse/createErrorResponse helpers
+    └── types.ts          # Shared types (optional)
+```
 
-3. **Output**
-   - Produce a **patch-style** response (unified diff) OR full updated file contents for every modified/added file.
-   - Include a short verification section with exact commands (build, lint/test if present, and Inspector usage):
-     - `npx @modelcontextprotocol/inspector node dist/index.js` (stdio)
-     - `npx @modelcontextprotocol/inspector http://localhost:3000/mcp` (HTTP)
+## Mandatory Rules
 
-## Constraints & Standards
+### Versions & Imports
 
-- **Versions**
-  - Use `@modelcontextprotocol/sdk` **v1.x** APIs only.
-  - Use **Zod v4**: `import { z } from "zod"`.
-- **TypeScript**
-  - Strict mode; prefer enabling: `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules` (justify deviations).
-  - Use **type-only imports** where applicable: `import type { X } from "..."` / `import { type X } from "..."`.
-  - Use **named exports only** (no default exports).
-  - Local imports must use **`.js` extensions** when emitting NodeNext/ESM.
-  - Exported functions must have **explicit return types**.
-- **Schemas**
-  - Use `z.strictObject()` for all objects (reject unknown fields).
-  - Every parameter must include `.describe(...)`.
-  - Add bounds: `.min()`/`.max()` for strings/arrays/numbers; `z.enum([...])` for constrained values.
-  - No-arg tools: `z.strictObject({})`.
-- **Tool Responses**
-  - Always return both:
-    - `structuredContent: structured`
-    - `content: [{ type: "text", text: JSON.stringify(structured) }]`
-  - On failure: include `isError: true` and do not throw uncaught exceptions.
-- **Annotations**
-  - Use as hints only: `readOnlyHint`, `idempotentHint`, `destructiveHint`, `openWorldHint` (choose appropriately).
-- **Anti-Hallucination**
-  - Do not invent files, APIs, endpoints, or repo scripts. If something is missing/unknown, output `"N/A"` and proceed with the safest assumption consistent with observed code.
-- **Deliverable Format**
-  - Output: Markdown containing (1) diff or file contents, (2) rationale for non-trivial decisions, (3) verification commands.
+- Use `@modelcontextprotocol/sdk` **v1.x** for production servers.
+- Standardize on **Zod v4** (`import { z } from 'zod'`); do not use `zod/v3` unless intentionally pinned.
+- Use **named exports only** (no default exports).
+- Use **type-only imports**: `import type { X }` / `import { type X }`.
+- Use `.js` extensions in **local imports** when using NodeNext/ESM output.
+- Exported functions should have **explicit return types**.
+
+### TypeScript Strictness
+
+Enable (or justify deviations):
+
+- `strict`
+- `noUncheckedIndexedAccess`
+- `verbatimModuleSyntax`
+- `isolatedModules`
+
+### CLI Entrypoint (Shebang)
+
+If executed via `node dist/index.js` or exposed via `bin` in `package.json`:
+
+- `src/index.ts` MUST start with this exact first line (no BOM/blank lines):
+  - `#!/usr/bin/env node`
+
+### Tool Naming
+
+- Tool names SHOULD be 1–128 chars and match: `[A-Za-z0-9_.-]+` (no spaces)
+- Tool names SHOULD be unique within a server.
+
+## Tool Implementation Standard
+
+### Metadata
+
+Every tool MUST have:
+
+- `name`: Unique identifier matching `[A-Za-z0-9_.-]+`
+- `description`: Clear, actionable LLM description (when to use it, what it returns)
+
+Every tool SHOULD have:
+
+- `title`: Human-readable display name for UI surfaces
+- `annotations`: Behavioral hints for clients (see [Annotations](#annotations-hints-only))
+- `icons`: Array of icon objects for UI display (see [Icons](#icons))
+
+### Input/Output Schemas
+
+- Use `z.strictObject()` for all object schemas (reject unknown fields).
+- Add `.describe()` to every parameter for LLM guidance.
+- Add bounds: `.min()`/`.max()` for strings/arrays/numbers; use `z.enum([...])` for constrained values.
+- Tools with no parameters use `z.strictObject({})`.
+
+### Output Shape (Recommended Baseline)
+
+```ts
+outputSchema: z.strictObject({
+  ok: z.boolean(),
+  result: z.unknown().optional(),
+  error: z.strictObject({ code: z.string(), message: z.string() }).optional(),
+});
+```
+
+### Structured Content (Backward Compatibility)
+
+When returning `structuredContent`, ALSO include a JSON string in `content`:
+
+- `content: [{ type: 'text', text: JSON.stringify(structured) }]`
+
+### Content Types in Tool Results
+
+Tools may return multiple content types in the `content` array:
+
+- **Text**: `{ type: 'text', text: '...' }`
+- **Image**: `{ type: 'image', data: 'base64...', mimeType: 'image/png' }`
+- **Audio**: `{ type: 'audio', data: 'base64...', mimeType: 'audio/wav' }`
+- **Resource link**: `{ type: 'resource_link', uri: '...', name: '...', mimeType: '...' }`
+- **Embedded resource**: `{ type: 'resource', resource: { uri: '...', mimeType: '...', text: '...' } }`
+
+### Errors
+
+- Prefer tool execution errors over protocol errors for invalid tool inputs.
+- On failure return `isError: true` in the tool result; do not throw uncaught exceptions.
+
+### Canonical Tool Pattern
+
+```ts
+server.registerTool(
+  "tool_name",
+  {
+    title: "Human Title",
+    description:
+      "Clear, actionable LLM description (when to use it, what it returns)",
+    inputSchema: z.strictObject({
+      param: z.string().min(1).max(200).describe("Parameter description"),
+    }),
+    outputSchema: z.strictObject({
+      ok: z.boolean(),
+      result: z.unknown().optional(),
+      error: z
+        .strictObject({ code: z.string(), message: z.string() })
+        .optional(),
+    }),
+    annotations: { readOnlyHint: true, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const result = await doWork(params);
+      const structured = { ok: true, result };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structured) }],
+        structuredContent: structured,
+      };
+    } catch (err) {
+      const structured = {
+        ok: false,
+        error: { code: "E_FAILED", message: getErrorMessage(err) },
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structured) }],
+        structuredContent: structured,
+        isError: true,
+      };
+    }
+  },
+);
+```
+
+## Annotations (Hints Only)
+
+Annotations guide LLM behavior; they are not authorization.
+
+- `readOnlyHint`: does not modify state
+- `idempotentHint`: safe to retry with same args (avoid if intentionally nondeterministic)
+- `destructiveHint`: irreversible change
+- `openWorldHint`: external network/API calls
+
+## Icons
+
+Tools, resources, resource templates, and prompts support optional `icons` arrays for UI display:
+
+```ts
+icons: [
+  { src: "https://example.com/icon.svg", mimeType: "image/svg+xml" },
+  { src: "data:image/png;base64,...", mimeType: "image/png" },
+],
+```
+
+- Icons have `src` (URL or data URI), `mimeType`, and optional `sizes` array.
+- Omit `sizes` for maximum client compatibility.
+- Use `data:` URIs for bundled icons; HTTPS URLs for remote icons.
+
+## Resources
+
+### Registration
+
+- Static resources: `server.registerResource(name, uri, metadata, readCallback)`.
+- Dynamic resources: `ResourceTemplate` with URI pattern + `readCallback`.
+- Provide `listCallback` for dynamic templates to make them discoverable.
+
+### Metadata
+
+Resources and resource templates support:
+
+- `name`: Identifier for the resource.
+- `title`: Optional human-readable display name.
+- `description`: Optional description.
+- `mimeType`: Optional MIME type.
+- `icons`: Optional array of icon objects.
+
+### Annotations
+
+Resource annotations provide hints for clients:
+
+- `audience`: `["user"]`, `["assistant"]`, or `["user", "assistant"]`
+- `priority`: `0.0` (least important) to `1.0` (most important / required)
+- `lastModified`: ISO 8601 timestamp
+
+### Content
+
+Resources return `contents[]` with:
+
+- Text: `{ uri, mimeType, text }`
+- Binary: `{ uri, mimeType, blob }` (base64-encoded)
+
+### Subscriptions
+
+- Declare `subscribe` in `resources` capability to allow clients to subscribe to individual resource changes.
+- Send `notifications/resources/updated` when a subscribed resource changes.
+
+## Prompts
+
+- Declare `prompts` capability; validate arguments with Zod.
+- Every prompt SHOULD have `name`, `title`, `description`.
+- Support optional `icons` and `arguments` for customization.
+- Use completable arguments only where completion is supported and safe.
+- Return `messages[]` with `role` ("user" or "assistant") and content (text, image, audio, or embedded resource).
+
+## Transport Rules
+
+### Defaults
+
+- **Streamable HTTP**: recommended for remote servers.
+- **stdio**: ideal for local/CLI servers.
+- HTTP+SSE legacy transport: only for backward compatibility.
+
+### stdio Hygiene
+
+- Never write non-MCP output to **stdout** (it corrupts JSON-RPC).
+- Use `console.error()` or protocol logging.
+
+### Streamable HTTP Security
+
+- Validate `Origin` **if present**; if invalid → **HTTP 403**.
+- Prefer `createMcpExpressApp({ host: 'localhost' })` for DNS rebinding protection.
+- Or use `hostHeaderValidation([...])`.
+- For stateful sessions, read header as `req.headers['mcp-session-id']` (Express lowercases).
+
+## Streamable HTTP (Spec 2025-11-25 Essentials)
+
+- MCP endpoint MUST support both `POST` and `GET`.
+  - `GET` MUST serve `text/event-stream` or return **405** (not 404).
+
+- JSON-RPC POST clients MUST send `Accept: application/json, text/event-stream`.
+- Expired session: server returns **404** for invalid/expired `MCP-Session-Id`; client must re-initialize without session id.
+- Clients MUST send `MCP-Protocol-Version: <negotiated>` on subsequent requests; invalid/unsupported → **400**.
+- SSE resume uses **GET + Last-Event-ID**.
+- Do not broadcast the same JSON-RPC message across multiple SSE streams.
+
+## Authorization (HTTP; Optional but Common)
+
+- stdio servers generally avoid HTTP auth flows; use environment-provided credentials.
+- If implementing auth, support Protected Resource Metadata (RFC 9728) discovery via:
+  - `WWW-Authenticate: Bearer resource_metadata="..."` (recommended on 401), or
+  - `/.well-known/oauth-protected-resource[...]` fallback.
+
+- Do not accept tokens not issued for this MCP server (no token passthrough).
+
+## Logging
+
+- Declare `logging` capability to emit structured log notifications.
+- Log levels follow RFC 5424 syslog severity: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`.
+- Respect client `logging/setLevel` requests; filter messages below the set level.
+- Include relevant context in log `data` field; use consistent `logger` names.
+- Gate logging: only send `notifications/message` if client declared `logging` capability.
+- Never log secrets, PII, or credentials.
+
+## Progress Notifications
+
+- Clients include `_meta.progressToken` in requests to receive progress updates.
+- Send `notifications/progress` with matching token, monotonically increasing `progress`, optional `total`, and optional `message`.
+- Stop sending progress notifications after the operation completes.
+- For task-augmented requests, the progress token remains valid throughout the task's lifetime until the task reaches a terminal status.
+
+## Tasks
+
+- If supported: declare `capabilities.tasks` with supported request types (e.g., `tasks.requests.tools.call`).
+- Tools declare task support via `execution.taskSupport`:
+  - `"required"`: clients MUST invoke as task
+  - `"optional"`: clients MAY invoke as task or normally
+  - `"forbidden"` (default): clients MUST NOT invoke as task
+- Task lifecycle: `working` → `input_required` | `completed` | `failed` | `cancelled`.
+- Task cancellation uses `tasks/cancel` (not `notifications/cancelled`).
+- All related messages MUST include `io.modelcontextprotocol/related-task` in `_meta`.
+
+## Capabilities & UX
+
+### Sampling
+
+- Only if client `sampling` capability exists; keep a human in the loop.
+- Use `modelPreferences` with hints and priority values (cost/speed/intelligence).
+- Honor `sampling.tools` capability for tool-enabled sampling requests.
+- Tool use in sampling follows a multi-turn loop pattern.
+
+### Elicitation
+
+- Only if client `elicitation` capability exists.
+- **Form mode** (default): collect structured data via JSON Schema (flat objects, primitive types only).
+- **URL mode**: direct users to external URLs for sensitive interactions (OAuth flows, API keys, payments).
+- MUST NOT request sensitive credentials via form mode; use URL mode instead.
+- Handle all response actions: `accept`, `decline`, `cancel`.
+
+### Completion
+
+- Implement argument auto-completion for prompts and resource templates via the completion API.
+- Only provide completions where safe and useful.
+
+## Helpers (Recommended)
+
+- Provide shared helpers in `src/lib/`:
+  - `getErrorMessage(error: unknown): string`
+  - `createToolResponse(structured)` (always sets both `content` and `structuredContent`)
+  - `createErrorResponse(code, message)` (sets `isError: true`)
+
+## Testing & Verification
+
+- Inspector:
+  - `npx @modelcontextprotocol/inspector node dist/index.js` (stdio)
+  - `npx @modelcontextprotocol/inspector http://localhost:3000/mcp` (HTTP)
+
+- Prefer `node:test` for unit tests; keep tests deterministic.
+
+## Shutdown (Required)
+
+Wire clean exit:
+
+```ts
+process.on("SIGTERM", () => process.exit(0));
+process.on("SIGINT", () => process.exit(0));
+```

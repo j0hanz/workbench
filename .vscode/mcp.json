@@ -21,9 +21,9 @@
         "GOOGLE_API_KEY": "${input:google-api-key}"
       }
     },
-    "fs-context": {
+    "filesystem-mcp": {
       "command": "npx",
-      "args": ["-y", "@j0hanz/fs-context-mcp@latest", "${workspaceFolder}"]
+      "args": ["-y", "@j0hanz/filesystem-mcp@latest", "${workspaceFolder}"]
     },
     "superFetch": {
       "command": "npx",

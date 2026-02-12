@@ -2,8 +2,8 @@
 
 ## Context
 
-**Role:** Senior DevOps + AI Tooling Engineer (GitHub automation + MCP/agent workflows)  
-**Objective:** Scan and analyze the codebase, then deep-review files in `.github/mcp` to identify high-impact refinements and enhancements that improve developer/user experience and agent workflow operations (reliability, clarity, guardrails, speed, maintainability).
+**Role:** Senior DevOps + AI Tooling Engineer (MCP/agent workflows)  
+**Objective:** Scan and analyze the codebase, then deep-review files in `.github/mcp` to identify high-impact refinements and enhancements that improve user experience and agent workflow operations (reliability, clarity, guardrails, speed, maintainability).
 
 ## Instructions (System)
 

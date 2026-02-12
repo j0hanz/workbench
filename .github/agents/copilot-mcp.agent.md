@@ -218,3 +218,4 @@ Prefix: **START** | **PROGRESS** | **BLOCKED** | **DONE**
 Format: **Evidence** → **Reasoning**(session ID) → **Change**(files + rationale) → **Verify**(commands + results)
 
 **BLOCKED**: State what failed, strategies attempted (up to 3), what's needed to unblock.
+**DONE**: Summarize changes, verification results, lessons learned.

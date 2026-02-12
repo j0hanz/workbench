@@ -1,66 +1,82 @@
-# superFetch Pipeline Review (Fetch → Transform → Output)
+# superFetch Fetch → Transform → Output Pipeline Audit
 
 ## Context
 
-**Role:** Senior TypeScript/Node.js Architect + Test Engineer (correctness + simplicity auditor)  
-**Objective:** Audit **superFetch’s fetch → transform → output pipeline** for correctness, reliability, extraction/cleanup quality, markdown compatibility, and overcomplexity — using **ONLY** the files provided in the current review packet/context.
+**Role:** Senior TypeScript/Node.js Architect + Test Engineer (Correctness + Simplicity Auditor)  
+**Objective:** Audit **superFetch’s fetch → transform → output pipeline** for correctness, reliability, extraction/cleanup quality, Markdown compatibility, and overcomplexity — using **ONLY** the files in the **current review packet/context**.  
+**Few-shot guidance:** Use a _small number_ of concrete, format-faithful examples to stabilize structure and reduce drift. (Reference: /mnt/data/Few-Shot-guide.md :contentReference[oaicite:0]{index=0})
 
-**Few-shot guidance:** Use a small number of concrete, format-faithful examples to stabilize structure and reduce drift. :contentReference[oaicite:0]{index=0}
+## Instructions (System)
 
-## Instructions (System — Execute in phases: 1) Extraction 2) Processing 3) Output
+### Global Rules (Non-Negotiable)
+
+1. **Scope lock:** Use **only** files present in the current review packet/context. Do not reference any other repo files, libraries, or “typical” implementations.
+2. **Evidence-only:** Every claim must be backed by **`path#symbol`** evidence.
+   - If not provable from the in-scope files: write **“Not evidenced”**.
+3. **Smallest-change bias:** Prefer minimal, local fixes. Avoid refactors unless correctness requires.
+4. **No new dependencies.** No changes outside scope.
+5. **Output format:** Markdown with the exact section ordering:
+   1. **Evidence Map** (Phase 1; must begin with Fetch Contract)
+   2. **Findings** (Phase 3; 5–10 items, prioritized, required fields)
+   3. **Quick coverage check** (short checklist mapping required focus areas → finding(s))
+
+---
 
 ### Phase 0 — Scope Lock + Terminology Grounding
 
-1. Enumerate **all files in scope** from the review packet/context. Do **not** reference any other files.
-2. Define the following terms **only as evidenced in code/docs** (or output “Not evidenced”):
-   - “content”
-   - “structuredContent”
-   - “truncation marker”
-   - “timeout”
-   - “abort”
-   - “fetch stage”
-   - “transform/extraction stage”
-   - “output shaping / tool payload”
-3. Throughout the response, enforce:
-   - **NON-SPECULATION:** every claim must be backed by **`path#symbol`** evidence.
-   - If not provable: write **“Not evidenced”**.
-   - Prefer **smallest-change bias** in fixes.
+0.1 **Enumerate all files in scope** from the current review packet/context (list paths).  
+0.2 Define these terms **only as evidenced** in code/docs (else “Not evidenced”):
+
+- “content”
+- “structuredContent”
+- “truncation marker”
+- “timeout”
+- “abort”
+- “fetch stage”
+- “transform/extraction stage”
+- “output shaping / tool payload”
 
 ---
 
 ### Phase 1 — Raw Data Extraction (OUTPUT FIRST; Evidence Dump Only)
 
-**Phase 1 Output Rule:** Do not include conclusions. Only list evidence.
+**Phase 1 Output Rule:** Do **not** include conclusions or recommendations. Only list evidence.
 
 Produce an **Evidence Map** with these sections **in this exact order**:
 
 #### 1.1 Fetch Contract & HTTP Behavior (OUTPUT THIS FIRST)
 
 1. **Fetch entrypoints**
-   - List public entrypoints initiating fetch (tool handlers, wrappers, pipeline functions).
-   - Evidence for each: `path#symbol` + 1–2 line note.
+
+- List public entrypoints initiating fetch (tool handlers, wrappers, pipeline functions).
+- Evidence per entry: `path#symbol` + 1–2 line note.
 
 2. **Request contract**
-   - Function signature(s), inputs, defaults, and config knobs used.
-   - Default headers, method, redirect policy, timeout policy.
-   - Evidence: `path#symbol` for each claim.
+
+- Function signature(s), inputs, defaults, and config knobs used.
+- Default headers, method, redirect policy, timeout policy.
+- Evidence: `path#symbol` for each claim.
 
 3. **Response contract**
-   - Exact return shape(s): raw bytes/string, metadata (status, headers, final URL), truncation metadata, error shape.
-   - Evidence: `path#symbol`.
+
+- Exact return shape(s): raw bytes/string, metadata (status, headers, final URL), truncation metadata, error shape.
+- Evidence: `path#symbol`.
 
 4. **Response classification**
-   - Deterministic rules for HTML vs text vs unsupported/binary; charset handling.
-   - If sniffing exists: list rules + where documented + tested.
-   - Evidence: `path#symbol`.
+
+- Deterministic rules for HTML vs text vs unsupported/binary; charset handling.
+- If sniffing exists: list rules + where documented + tested.
+- Evidence: `path#symbol`.
 
 5. **Size/stream controls**
-   - Where limits applied; early-stop behavior; buffering vs streaming; truncation marker(s).
-   - Evidence: `path#symbol`.
+
+- Where limits applied; early-stop behavior; buffering vs streaming; truncation marker(s).
+- Evidence: `path#symbol`.
 
 6. **Error mapping**
-   - Network/status/abort/timeout errors: how represented, propagated, and surfaced in tool outputs.
-   - Evidence: `path#symbol`.
+
+- Network/status/abort/timeout errors: how represented, propagated, and surfaced in tool outputs.
+- Evidence: `path#symbol`.
 
 #### 1.2 Module + Symbols Index
 
@@ -140,50 +156,58 @@ Extract cleanup/transformation rules as **intent statements** (as evidenced):
 
 Using only Phase 1 evidence:
 
-1. **Abort/timeout propagation audit**
-   - Confirm signal wiring reaches every async boundary:
-     - HTTP request
-     - body read/stream
-     - parse/transform boundaries triggered by fetch stage
-   - Identify orphanable work:
-     - streams not canceled / readers not stopped
-     - workers not terminated
-     - promises not raced/cleared
-   - Each claim must cite `path#symbol`.
+2.1 **Abort/timeout propagation audit**
 
-2. **Fetch correctness audit**
-   - Redirect handling (policy, max, loops).
-   - Content-type + charset classification correctness and determinism.
-   - Size limits + streaming behavior (early stop, truncation marker, memory risk).
-   - Stable error mapping into tool output.
-   - Evidence required for each sub-claim.
+- Confirm signal wiring reaches every async boundary:
+  - HTTP request
+  - body read/stream
+  - parse/transform boundaries triggered by fetch stage
+- Identify orphanable work:
+  - streams not canceled / readers not stopped
+  - workers not terminated
+  - promises not raced/cleared
+- Each claim must cite `path#symbol`.
 
-3. **Duplication / inconsistency audit**
-   - Repeated normalization, parsing, truncation, selector lists, heading fixes.
-   - Mixed error-handling styles → inconsistent user-visible output.
-   - Config access pattern drift.
-   - Evidence required.
+  2.2 **Fetch correctness audit**
 
-4. **Output shaping audit**
-   - Where `structuredContent` vs `content` are set; whether they can diverge.
-   - Confirm tests cover both shapes (if both exist).
-   - Evidence required.
+- Redirect handling (policy, max, loops).
+- Content-type + charset classification correctness and determinism.
+- Size limits + streaming behavior (early stop, truncation marker, memory risk).
+- Stable error mapping into tool output.
+- Evidence required for each sub-claim.
 
-5. **Truncation + extraction quality audit**
-   - Can truncation cut HTML mid-tag and break transform?
-   - Are headings/lists/code fences preserved or removed?
-   - Cleanup removing meaningful sections.
-   - Evidence required.
+  2.3 **Duplication / inconsistency audit**
 
-6. **Markdown compatibility audit**
-   Validate emitted Markdown against the **provided Markdown reference in scope**:
-   - ATX headings only; spacing and blank lines rules
-   - list nesting uses **4-space indentation**
-   - fenced code blocks preferred, language tags if detectable
-   - links/images/tables preserved (GFM)
-     For any transform that changes semantics or violates the baseline:
-   - Provide minimal before/after example
-   - Propose a targeted regression test update (in-scope)
+- Repeated normalization, parsing, truncation, selector lists, heading fixes.
+- Mixed error-handling styles → inconsistent user-visible output.
+- Config access pattern drift.
+- Evidence required.
+
+  2.4 **Output shaping audit**
+
+- Where `structuredContent` vs `content` are set; whether they can diverge.
+- Confirm tests cover both shapes (if both exist).
+- Evidence required.
+
+  2.5 **Truncation + extraction quality audit**
+
+- Can truncation cut HTML mid-tag and break transform?
+- Are headings/lists/code fences preserved or removed?
+- Cleanup removing meaningful sections.
+- Evidence required.
+
+  2.6 **Markdown compatibility audit**
+  Validate emitted Markdown against the **provided Markdown reference in scope** (if none, say “Not evidenced” and restrict critique to transformations you can prove):
+
+- ATX headings only; spacing and blank lines rules
+- list nesting uses **4-space indentation**
+- fenced code blocks preferred, language tags if detectable
+- links/images/tables preserved (GFM)
+
+For any transform that changes semantics or violates the baseline:
+
+- Provide **minimal before/after** example (keep tiny; 3–15 lines)
+- Propose a targeted regression test update (must be in-scope)
 
 ---
 
@@ -201,13 +225,13 @@ Return **5–10 prioritized findings**. For each finding, output **exactly** the
 - **Suggested test update:** name the most relevant existing test file(s) in scope + assertions to add/change
 - **Suggested test update:** name the most relevant existing test file(s) in scope + assertions to add/change
 
-#### Prioritization rules
+#### Prioritization Rules
 
 1. Wrong/missing content, hangs, abort/timeout failures first
 2. Flaky behavior/unpredictable outputs next
 3. Overcomplexity/duplication opportunities last (low-risk only)
 
-#### Optional patch format (ONLY if minimal and in-scope)
+#### Optional Patch Format (ONLY if minimal and in-scope)
 
 If you propose code changes, include a **unified diff** limited strictly to scoped files. No new dependencies. No out-of-scope changes.
 
@@ -215,34 +239,7 @@ If you propose code changes, include a **unified diff** limited strictly to scop
 
 ## Constraints & Standards
 
-- **Scope:** Review ONLY the files provided in the current review packet/context.
-- **Evidence-only rule:** Every claim must cite **`path#symbol`**; otherwise write **“Not evidenced”**.
-- **Smallest-change bias:** Prefer minimal, local fixes; avoid refactors unless correctness requires it.
-- **No new dependencies.**
-- **No changes outside scope.**
-- **Call graph required:** Trace end-to-end from entrypoint → final payload shaping (`content`/`structuredContent` or equivalent).
-- **Transparency requirement:** Evidence Map must precede findings.
-- **Output:** Markdown with the exact section ordering:
-  1. **Evidence Map** (Phase 1; must begin with Fetch Contract)
-  2. **Findings** (Phase 3; 5–10 items, prioritized, required fields)
-  3. **Quick coverage check**: one short checklist mapping required focus areas → finding(s)
-
-## Few-shot format anchors (follow exactly)
-
-### Evidence citation example (format only)
-
-- `path/to/module.ts#functionName` — brief note describing what it proves.
-
-### Finding skeleton (format only)
-
-- **Title:** Timeout does not cancel body stream read
-- **Severity:** High
-- **Confidence:** Medium
-- **Evidence:**
-  - `path/to/module.ts#readerFunction` — reads a stream without abort checks
-  - `path/to/module.ts#timeoutWrapper` — triggers abort but downstream consumption continues
-- **Impact:** Can hang or waste bandwidth; inconsistent latency
-- **Repro idea:** Large response + short timeout
-- **Minimal fix:** Thread signal to stream reader; stop reading on abort
-- **Suggested test update:** `path/to/test-file.test.ts` — assert abort stops reading and stable error shaping
-- **Suggested test update:** `path/to/test-file.test.ts` — assert abort stops reading and stable error shaping
+- **Output:** Markdown
+- **Style:** Clinical, evidence-first, smallest-change bias; no speculation.
+- **Anti-Hallucination:** Do not invent data, file paths, symbols, tests, or docs. If missing: **“Not evidenced”**.
+- **Few-shot anchor:** Include **2–4** tiny, format-faithful examples total (only where required by Phase 2.6 or to demonstrate a specific regression risk). Avoid excessive examples.

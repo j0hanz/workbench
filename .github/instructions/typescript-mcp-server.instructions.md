@@ -1,5 +1,6 @@
 ---
-description: "Rules for building MCP servers with TypeScript SDK"
+description: 'Rules for building MCP servers with TypeScript SDK'
+applyTo: '**/*.ts, **/*.js, **/package.json'
 ---
 
 ## Related Files
@@ -129,13 +130,13 @@ Tools may return multiple content types in the `content` array:
 
 ```ts
 server.registerTool(
-  "tool_name",
+  'tool_name',
   {
-    title: "Human Title",
+    title: 'Human Title',
     description:
-      "Clear, actionable LLM description (when to use it, what it returns)",
+      'Clear, actionable LLM description (when to use it, what it returns)',
     inputSchema: z.strictObject({
-      param: z.string().min(1).max(200).describe("Parameter description"),
+      param: z.string().min(1).max(200).describe('Parameter description'),
     }),
     outputSchema: z.strictObject({
       ok: z.boolean(),
@@ -151,21 +152,21 @@ server.registerTool(
       const result = await doWork(params);
       const structured = { ok: true, result };
       return {
-        content: [{ type: "text", text: JSON.stringify(structured) }],
+        content: [{ type: 'text', text: JSON.stringify(structured) }],
         structuredContent: structured,
       };
     } catch (err) {
       const structured = {
         ok: false,
-        error: { code: "E_FAILED", message: getErrorMessage(err) },
+        error: { code: 'E_FAILED', message: getErrorMessage(err) },
       };
       return {
-        content: [{ type: "text", text: JSON.stringify(structured) }],
+        content: [{ type: 'text', text: JSON.stringify(structured) }],
         structuredContent: structured,
         isError: true,
       };
     }
-  },
+  }
 );
 ```
 
@@ -348,6 +349,6 @@ Resources return `contents[]` with:
 Wire clean exit:
 
 ```ts
-process.on("SIGTERM", () => process.exit(0));
-process.on("SIGINT", () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
 ```

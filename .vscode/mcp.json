@@ -1,33 +1,41 @@
 {
   "servers": {
-    "thinkseq": {
-      "command": "npx",
-      "args": ["-y", "@j0hanz/thinkseq-mcp@latest"]
-    },
     "memdb": {
       "command": "npx",
-      "args": ["-y", "@j0hanz/memdb@latest"]
+      "args": [
+        "-y",
+        "@j0hanz/memdb@latest"
+      ]
     },
     "todokit": {
       "command": "npx",
-      "args": ["-y", "@j0hanz/todokit-mcp@latest"]
-    },
-    "prompttuner": {
-      "command": "npx",
-      "args": ["-y", "@j0hanz/prompt-tuner-mcp-server@latest"],
-      "env": {
-        "LLM_PROVIDER": "google",
-        "LLM_MODEL": "gemini-2.0-flash-exp",
-        "GOOGLE_API_KEY": "${input:google-api-key}"
-      }
+      "args": [
+        "-y",
+        "@j0hanz/todokit-mcp@latest"
+      ]
     },
     "filesystem-mcp": {
       "command": "npx",
-      "args": ["-y", "@j0hanz/filesystem-mcp@latest", "${workspaceFolder}"]
+      "args": [
+        "-y",
+        "@j0hanz/filesystem-mcp@latest",
+        "${workspaceFolder}"
+      ]
     },
-    "superFetch": {
+    "fetch-url-mcp": {
       "command": "npx",
-      "args": ["-y", "@j0hanz/superfetch@latest", "--stdio"]
+      "args": [
+        "-y",
+        "@j0hanz/fetch-url-mcp@latest",
+        "--stdio"
+      ]
+    },
+    "cortex-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@j0hanz/cortex-mcp@latest"
+      ]
     },
     "github": {
       "type": "http",
@@ -39,7 +47,10 @@
     "markitdown": {
       "type": "stdio",
       "command": "py",
-      "args": ["-m", "markitdown_mcp"]
+      "args": [
+        "-m",
+        "markitdown_mcp"
+      ]
     },
     "context7": {
       "type": "stdio",
@@ -136,7 +147,9 @@
       "id": "verifyConnection",
       "type": "command",
       "command": "npx",
-      "args": ["@modelcontextprotocol/inspector"]
+      "args": [
+        "@modelcontextprotocol/inspector"
+      ]
     },
     {
       "id": "enforceMuiRules",

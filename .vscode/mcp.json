@@ -1,5 +1,15 @@
 {
   "servers": {
+    "code-review-analyst": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@j0hanz/code-review-analyst-mcp@latest"
+      ],
+      "env": {
+        "GEMINI_API_KEY": "AIzaSyDKOonC5HVW0PA1RggZYpX_F8kjqxIuqLc"
+      }
+    },
     "memdb": {
       "command": "npx",
       "args": [

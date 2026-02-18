@@ -1,7 +1,4 @@
----
-description: 'Rules for building MCP servers with TypeScript SDK'
-applyTo: '**/*.ts, **/*.js, **/package.json'
----
+# TypeScript MCP Server Instructions (SDK v1.x)
 
 ## Related Files
 

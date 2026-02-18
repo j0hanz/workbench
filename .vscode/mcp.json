@@ -10,12 +10,9 @@
         "GEMINI_API_KEY": "${input:gemini-api-key}"
       }
     },
-    "memdb": {
+    "memory-mcp": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@j0hanz/memdb@latest"
-      ]
+      "args": ["-y", "@j0hanz/memory-mcp@latest"]
     },
     "todokit": {
       "command": "npx",

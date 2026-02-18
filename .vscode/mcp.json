@@ -7,7 +7,7 @@
         "@j0hanz/code-review-analyst-mcp@latest"
       ],
       "env": {
-        "GEMINI_API_KEY": "AIzaSyDKOonC5HVW0PA1RggZYpX_F8kjqxIuqLc"
+        "GEMINI_API_KEY": "${input:gemini-api-key}"
       }
     },
     "memdb": {
@@ -88,52 +88,16 @@
   },
   "inputs": [
     {
-      "id": "prompttuner-llm-provider",
-      "type": "promptString",
-      "description": "PromptTuner LLM Provider (openai, anthropic, or google)",
-      "default": "openai"
-    },
-    {
-      "id": "prompttuner-llm-model",
-      "type": "promptString",
-      "description": "PromptTuner LLM Model (e.g., gpt-4o, claude-3-5-sonnet-20241022, gemini-2.0-flash-exp)",
-      "default": "gpt-4o"
-    },
-    {
       "password": true,
-      "id": "openai-api-key",
+      "id": "gemini-api-key",
       "type": "promptString",
-      "description": "OpenAI API Key (get from platform.openai.com/api-keys)"
-    },
-    {
-      "password": true,
-      "id": "anthropic-api-key",
-      "type": "promptString",
-      "description": "Anthropic API Key (get from console.anthropic.com)"
-    },
-    {
-      "password": true,
-      "id": "google-api-key",
-      "type": "promptString",
-      "description": "Google Gemini API Key (get from aistudio.google.com)"
-    },
-    {
-      "password": true,
-      "id": "exa-api-key",
-      "type": "promptString",
-      "description": "Exa AI API Key (get from dashboard.exa.ai/api-keys)"
+      "description": "Gemini API Key"
     },
     {
       "password": true,
       "id": "github-pat",
       "type": "promptString",
       "description": "GitHub Personal Access Token"
-    },
-    {
-      "password": true,
-      "id": "apify-api-key",
-      "type": "promptString",
-      "description": "Apify API Key"
     },
     {
       "password": true,
@@ -146,12 +110,6 @@
       "id": "context7-api-key",
       "type": "promptString",
       "description": "Context7 API Key"
-    },
-    {
-      "password": true,
-      "id": "gemini-api-key",
-      "type": "promptString",
-      "description": "Gemini API Key"
     },
     {
       "id": "verifyConnection",

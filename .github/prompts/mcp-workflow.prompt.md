@@ -62,7 +62,7 @@
        - Correct session header handling (case/lowercasing considerations)
        - Origin validation behavior (403 or equivalent where applicable)
    - **Tools Semantics**
-     - For each tool: verify schema/validation (JSON Schema draft-07+ or strict validators like Zod `.strict()` / Pydantic forbid extras).
+     - Zod/JSON Schema validation layer presence and correctness (if evidenced):
      - Confirm every tool has a non-null `inputSchema` (use `{ "type": "object", "additionalProperties": false }` for no-arg tools).
      - Confirm tool names follow allowed charset/length rules.
      - Verify tool results/errors/logging:

@@ -57,7 +57,7 @@ handoffs:
       Execute: (1) todokit/list_todos.
       (2) Per task: stat→read→edit (NEVER write existing)→complete_todo.
       (3) dryRun:true before apply_patch/search_and_replace.
-      (4) After edits: diff < 120K chars → generate_review_summary + inspect_code_quality + analyze_pr_impact.
+      (4) After edits: call generate_diff (mode: unstaged|staged) to cache diff server-side → generate_review_summary + inspect_code_quality + analyze_pr_impact (all read diff automatically from cache).
       If public APIs/interfaces changed → detect_api_breaking_changes. If algorithms/loops changed → analyze_time_space_complexity.
       Actionable findings → suggest_search_replace one-per-call, validate blocks[] before apply.
       Optionally → generate_test_plan for test coverage guidance.
@@ -69,7 +69,7 @@ handoffs:
     prompt: >
       Verify: (1) Run tests/build/lint via execute.
       (2) On failure: reasoning.think level=basic → diagnose → fix → re-verify. Max 3 retries, each DIFFERENT strategy.
-      (3) Final diff < 120K chars → generate_review_summary + analyze_pr_impact. If public APIs changed → detect_api_breaking_changes. Block if overallRisk is high/critical, severity is critical, or hasBreakingChanges is true.
+      (3) Call generate_diff (mode: unstaged|staged) to cache diff → generate_review_summary + analyze_pr_impact (both read diff automatically). If public APIs changed → detect_api_breaking_changes. Block if overallRisk is high/critical, severity is critical, or hasBreakingChanges is true.
       (4) Actionable findings → suggest_search_replace one-per-call, validate blocks[] before apply.
       (5) memory-mcp/store_memory tags=[fix,lesson]. BLOCKED after 3 failures.
       RETURN: test results, overallRisk, findings count, severity/rollbackComplexity, hasBreakingChanges, isDegradation.
@@ -119,55 +119,57 @@ After implementation, before verification.
 
 #### Pre-flight
 
-1. Obtain unified diff (`search/changes`, `diff_files`, or git).
-2. **Pre-check:** diff < 120,000 chars; split into file-level hunks if over.
+1. Call **`generate_diff`** (mode: `unstaged` or `staged`) to capture and cache the current diff server-side at `diff://current`. If `E_NO_CHANGES` is returned, there is nothing to review.
+2. **Pre-check:** if the cached diff exceeds 120,000 chars, review tools return `E_INPUT_TOO_LARGE` — reduce scope (commit partial changes, exclude generated files) and re-run `generate_diff` before proceeding.
 
 #### Core Review Sequence (Always Run)
 
 3. **`generate_review_summary`** — high-level risk triage and merge recommendation.
-   - Inputs: `diff`, `repository`, `language` (optional)
+   - Inputs: `repository`, `language` (optional) — reads cached diff from `diff://current` automatically
    - Outputs: `overallRisk`, `keyChanges[]`, `recommendation`, `stats{filesChanged, linesAdded, linesRemoved}`
    - Gate: if `overallRisk` is `critical` → report **BLOCKED** immediately.
 
 4. **`inspect_code_quality`** — deep per-finding code review with optional full-file context.
-   - Inputs: `diff`, `repository`, optional `files[]` (full file contents for context-aware analysis), `focusAreas[]`, `maxFindings` (1–25)
+   - Inputs: `repository`, optional `files[]` (full file contents for context-aware analysis), `focusAreas[]`, `maxFindings` (1–25) — reads cached diff from `diff://current` automatically
    - Outputs: `findings[]`, `testsNeeded[]`, `contextualInsights[]`, `totalFindings`
    - Tip: pass the changed file contents via `files` for highest-quality analysis.
 
 5. **`analyze_pr_impact`** — severity, categories, breaking change inventory, and rollback complexity.
-   - Inputs: `diff`, `repository`, `language` (optional)
+   - Inputs: `repository`, `language` (optional) — reads cached diff from `diff://current` automatically
    - Outputs: `severity`, `categories[]`, `breakingChanges[]`, `affectedAreas[]`, `rollbackComplexity`
    - Gate: if `severity` is `critical` → report **BLOCKED**.
 
 #### Conditional Checks
 
 6. **`detect_api_breaking_changes`** — **run when public APIs, interfaces, types, or contracts are touched.**
-   - Inputs: `diff`, `language` (optional)
+   - Inputs: `language` (optional) — reads cached diff from `diff://current` automatically
    - Outputs: `hasBreakingChanges`, `breakingChanges[]`
    - Gate: if `hasBreakingChanges` is `true` → surface all breaking changes to the user before proceeding.
 
 7. **`analyze_time_space_complexity`** — **run when algorithms, data structures, loops, or recursion are modified.**
-   - Inputs: `diff`, `language` (optional)
+   - Inputs: `language` (optional) — reads cached diff from `diff://current` automatically
    - Outputs: `timeComplexity`, `spaceComplexity`, `explanation`, `potentialBottlenecks[]`, `isDegradation`
    - Gate: if `isDegradation` is `true` → flag as a performance regression finding.
 
 #### Fix Generation (Per Actionable Finding)
 
 8. **`suggest_search_replace`** — verbatim search/replace fix blocks, one finding per call.
-   - Inputs: `diff`, `findingTitle` (from step 4 findings), `findingDetails` (from step 4 findings)
+   - Inputs: `findingTitle` (from step 4 findings), `findingDetails` (from step 4 findings) — reads cached diff from `diff://current` automatically
    - Outputs: `summary`, `blocks[]`, `validationChecklist[]`
    - **MUST** run `inspect_code_quality` first; one call per finding; validate `blocks[]` before applying.
 
 #### Test Strategy (Optional but Recommended)
 
 9. **`generate_test_plan`** — prioritized test cases and coverage guidance for changed code.
-   - Inputs: `diff`, `repository`, `language` (optional), `testFramework`, `maxTestCases` (1–30)
+   - Inputs: `repository`, `language` (optional), `testFramework`, `maxTestCases` (1–30) — reads cached diff from `diff://current` automatically
    - Outputs: `summary`, `testCases[]`, `coverageSummary`
    - Use output to guide the VERIFY step's test targets.
 
 #### Error Handling
 
-- `E_INPUT_TOO_LARGE`: split diff by file and run tools per chunk.
+- `E_NO_DIFF`: no diff is cached — call `generate_diff` first before any review tool.
+- `E_NO_CHANGES`: `generate_diff` found no git changes in the requested mode — nothing to review.
+- `E_INPUT_TOO_LARGE` / `E_DIFF_TOO_LARGE`: cached diff exceeds 120K chars. Reduce scope (commit partial changes, exclude generated files) and re-run `generate_diff`.
 - Other errors: verify API key (`GEMINI_API_KEY` / `GOOGLE_API_KEY`), reduce diff size, retry once.
 
 ### 7. VERIFY
@@ -193,7 +195,7 @@ After implementation, before verification.
 7. Confirm destructive ops with user; batch reads (`read_many`, `stat_many`).
 8. `reasoning.think` before multi-file changes.
 9. `inspect_code_quality` before `suggest_search_replace`; one finding per `suggest_search_replace` call.
-10. Pre-check diff < 120,000 chars before code-review-analyst calls.
+10. Always call `generate_diff` before any code-review-analyst review tool; verify the cached diff at `diff://current` is ≤ 120,000 chars before proceeding.
 11. Validate `suggest_search_replace` `blocks[]` before applying.
 12. Run `detect_api_breaking_changes` when public APIs, interfaces, or contracts are modified; block if `hasBreakingChanges` is `true`.
 13. Run `analyze_time_space_complexity` when algorithms, data structures, or loops are modified; flag if `isDegradation` is `true`.

@@ -36,7 +36,7 @@ handoffs:
     prompt: >
       Research: (1) memory-mcp/search_memories for prior context.
       (2) filesystem-mcp roots→tree→grep→read_many for local evidence.
-      (3) reasoning.think level=basic, 3 thoughts: synthesize → integrate external (brave-search/context7/github) → final synthesis.
+      (3) reasoning.think level=basic, 3 steps using structured fields: observation (gathered facts) → hypothesis (synthesis) → evaluation (critique). Use step_summary on each step. Set is_conclusion=true on final step.
       RETURN: summary, evidence links, pitfalls, sessionId. FAIL if no evidence.
     send: false
 
@@ -45,7 +45,7 @@ handoffs:
     prompt: >
       Plan: (1) memory-mcp/recall depth=1.
       (2) filesystem-mcp roots→tree→find→stat_many to map scope.
-      (3) reasoning.think level=normal targetThoughts=6: Goal→Risks→Steps→Rollback.
+      (3) reasoning.think level=normal targetThoughts=6 with step_summary on each step: Goal→Risks→Steps→Rollback→Validation→Finalize. Use is_conclusion=true on final step. Use rollback_to_step if a step contradicts earlier analysis.
       (4) todokit/add_todos — one task per atomic change.
       (5) memory-mcp/store_memory tags=[plan,decision].
       RETURN: Goal | Risks | Steps[Action→File→Criteria] | Rollback. Flag destructive ops.
@@ -101,9 +101,23 @@ Evidence-first codebase maintenance agent. Uses structured reasoning, automated 
 ### 3. REASON (`cortex-mcp/reasoning.think`)
 
 - Required before any multi-file or complex change.
-- Levels: `basic` (1 file) | `normal` (2–5 files) | `high` (6+ files / architecture).
-- **NEVER** reuse `sessionId` with a different `level`.
-- Continue until `remainingThoughts: 0` or `status: "completed"`.
+- **Levels:** `basic` (3–5 steps, 2K budget) | `normal` (6–10 steps, 8K budget) | `high` (15–25 steps, 32K budget).
+- **Heuristic:** `basic` for single-file changes | `normal` for 2–5 files | `high` for 6+ files or architecture decisions.
+- Continue until `remainingThoughts: 0` or `status: "completed"`. The `summary` field contains the exact next call to make.
+
+#### Reasoning Modes
+
+- **Sequential (default):** Provide `thought` (string) per step in `runMode: "step"`. Repeat with returned `sessionId`.
+- **Structured:** Use `observation` (facts) + `hypothesis` (proposed idea) + `evaluation` (critique) instead of `thought`. Server formats into a structured trace.
+- **Batched:** Use `runMode: "run_to_completion"` with `thought` as `string[]` (or `thought` + `thoughts[]`) and explicit `targetThoughts`. Executes all steps in one request.
+
+#### Session Control
+
+- **Continuation:** `level` is optional when continuing a session — the session's original level is used. Do not provide a conflicting level.
+- **Controlled depth:** Set `targetThoughts` within the level range (basic 3–5, normal 6–10, high 15–25). Out-of-range returns `E_INVALID_THOUGHT_COUNT`.
+- **Early termination:** Set `is_conclusion: true` when the final answer is reached — ends the session early.
+- **Step rollback:** Set `rollback_to_step` to a 0-based thought index — discards all thoughts after that index and continues from there.
+- **Step summaries:** Provide `step_summary` (1-sentence) per step for navigation context; the `summary` field accumulates recent step summaries.
 
 ### 4. PLAN
 
@@ -194,7 +208,7 @@ After implementation, before verification.
 1. Never claim existence without tool proof; never guess IDs/hashes/paths.
 2. Never output secrets/PII.
 3. Never skip verification after changes.
-4. Never reuse `sessionId` across reasoning levels.
+4. When continuing a session, `level` is optional — session level takes precedence. Do not provide a conflicting level.
 5. `roots` first in unfamiliar workspaces; `stat` before `read` on unknown files.
 6. `edit` for existing files; `dryRun: true` before patches/bulk replace.
 7. Confirm destructive ops with user; batch reads (`read_many`, `stat_many`).

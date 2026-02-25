@@ -1,4 +1,4 @@
-.memdb
+memory_db/
 mcp/
 ts/
 node-lib/

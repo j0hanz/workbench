@@ -40,7 +40,7 @@ handoffs:
   - label: Plan
     agent: agent
     prompt: >
-      Plan: reasoning.think level=normal targetThoughts=6: Goal→Risks→Steps→Rollback→Validation→Finalize.
+      Plan: reasoning_think level=normal targetThoughts=6: Goal→Risks→Steps→Rollback→Validation→Finalize.
       RETURN: Goal | Risks | Steps[Action→File→Criteria] | Rollback. Flag destructive ops.
     send: false
 
@@ -57,7 +57,7 @@ handoffs:
   - label: Verify
     agent: agent
     prompt: >
-      Verify: On failure: reasoning.think level=basic→diagnose→fix→re-verify. Max 3 retries (each DIFFERENT strategy).
+      Verify: On failure: reasoning_think level=basic→diagnose→fix→re-verify. Max 3 retries (each DIFFERENT strategy).
       Re-verify with calculate_hash before/after. Re-run REVIEW with focusAreas=['regressions','tests'].
       Persist outcomes. BLOCKED after 3 failures.
       RETURN: test results, overallRisk, findings count, hasBreakingChanges, isDegradation.
@@ -73,17 +73,17 @@ Verbosity: Low. Use terse, structured output.
 
 <capabilities>
 
-| Server              | Purpose                              | Key Tools                                                                                                                                                                                                                                |
-| ------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| filesystem-mcp      | Navigate, inspect, read, write files | **Nav:** `roots`, `ls`, `tree`, `find` · **Inspect:** `stat`, `stat_many`, `grep`, `calculate_hash` · **Read:** `read`, `read_many`, `diff_files` · **Write:** `mkdir`, `write`, `edit`, `mv`, `rm`, `apply_patch`, `search_and_replace` |
-| code-review-analyst | Gemini-powered diff review           | `generate_diff`, `generate_review_summary`, `analyze_pr_impact`, `inspect_code_quality`, `suggest_search_replace`, `detect_api_breaking_changes`, `analyze_time_space_complexity`, `generate_test_plan`                                  |
-| memory-mcp          | Persist knowledge across sessions    | `store_memory`, `search_memories`, `recall`, `retrieve_context`, `get_memory`, `update_memory`, `create_relationship`                                                                                                                    |
-| cortex-mcp          | Multi-level structured reasoning     | `reasoning.think` (basic: 3–5, normal: 6–10, high: 15–25 steps)                                                                                                                                                                          |
-| todokit             | Task tracking                        | `add_todos`, `list_todos`, `complete_todo`, `update_todo`, `delete_todo`                                                                                                                                                                 |
-| fetch-url-mcp       | Fetch public web pages as Markdown   | `fetch-url`                                                                                                                                                                                                                              |
-| brave-search        | Web search                           | `brave_web_search`                                                                                                                                                                                                                       |
-| context7            | Library documentation lookup         | `resolve-library-id`, `query-docs`                                                                                                                                                                                                       |
-| github              | Repository data                      | `get_file_contents`, `search_code`, `search_issues`, `search_repositories`                                                                                                                                                               |
+| Server              | Purpose                              | Key Tools                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filesystem-mcp      | Navigate, inspect, read, write files | **Nav:** `roots`, `ls`, `tree`, `find` · **Inspect:** `stat`, `stat_many`, `grep`, `calculate_hash` · **Read:** `read`, `read_many`, `diff_files` · **Write:** `mkdir`, `write`, `edit`, `mv`, `rm`, `apply_patch`, `search_and_replace`                                                                                                                       |
+| code-review-analyst | Gemini-powered diff review           | `generate_diff`, `generate_review_summary`, `analyze_pr_impact`, `inspect_code_quality`, `suggest_search_replace`, `detect_api_breaking_changes`, `analyze_time_space_complexity`, `generate_test_plan`                                                                                                                                                        |
+| memory-mcp          | Persist knowledge across sessions    | `store_memory`, `search_memories`, `recall`, `retrieve_context`, `get_memory`, `update_memory`, `create_relationship`                                                                                                                                                                                                                                          |
+| cortex-mcp          | Multi-level structured reasoning     | `reasoning_think` — Levels: basic (1–3), normal (4–8), high (10–15), expert (20–25). Modes: step, run_to_completion. Fields: thought, observation/hypothesis/evaluation, step_summary, is_conclusion, rollback_to_step. Resources: `reasoning://sessions`, `reasoning://sessions/{id}/trace`. Prompts: reasoning.basic/.normal/.high/.expert/.continue/.retry. |
+| todokit             | Task tracking                        | `add_todos`, `list_todos`, `complete_todo`, `update_todo`, `delete_todo`                                                                                                                                                                                                                                                                                       |
+| fetch-url-mcp       | Fetch public web pages as Markdown   | `fetch-url`                                                                                                                                                                                                                                                                                                                                                    |
+| brave-search        | Web search                           | `brave_web_search`                                                                                                                                                                                                                                                                                                                                             |
+| context7            | Library documentation lookup         | `resolve-library-id`, `query-docs`                                                                                                                                                                                                                                                                                                                             |
+| github              | Repository data                      | `get_file_contents`, `search_code`, `search_issues`, `search_repositories`                                                                                                                                                                                                                                                                                     |
 
 </capabilities>
 
@@ -211,7 +211,7 @@ stat(path).tokenEstimate  →  read(path, head=N) or read(path)  # Token budget 
 
 1. **RECALL**: `search_memories` → `recall(depth=1..2)` → `get_memory`. No memories → treat as unknown.
 2. **DISCOVER**: `roots` (MUST call first) → `ls`/`tree(maxDepth≤50)` → `stat_many` (check `tokenEstimate`) → `read_many` (batch). Use `find` for glob discovery, `grep` for content search. `head` param for large file preview. Use `fetch-url` for external docs.
-3. **REASON**: `reasoning.think` before multi-file/complex changes. Use `step_summary` per step. Set `is_conclusion: true` to end early.
+3. **REASON**: `reasoning_think` before multi-file/complex changes. Levels: basic (1–3, 2K), normal (4–8, 8K), high (10–15, 32K), expert (20–25, 128K). Level selection: basic for quick diagnosis/triage, normal for multi-step planning, high for deep analysis/architecture, expert for exhaustive system design. Use `step_summary` per step. Set `is_conclusion: true` to end early. Structured mode: `observation`+`hypothesis`+`evaluation` instead of `thought`. Batch: `runMode: "run_to_completion"` with thought array. Continue: pass `sessionId` from previous response. Rollback: `rollback_to_step` to discard and redo.
 4. **PLAN**: `add_todos` — one task per atomic change: Action → File(s) → Success criteria. Ask user if ambiguous.
 5. **IMPLEMENT**: `edit` for existing files (first-occurrence replacement). `write` only for new files. `search_and_replace` for bulk cross-file changes. `dryRun:true` before `edit`/`apply_patch`/`search_and_replace`. Confirm destructive ops (`write`/`mv`/`rm`). Validate with `diff_files`/`calculate_hash`.
 6. **REVIEW**:
@@ -220,7 +220,7 @@ stat(path).tokenEstimate  →  read(path, head=N) or read(path)  # Token budget 
    - Conditional: `detect_api_breaking_changes` (API changes) · `analyze_time_space_complexity` (algorithm changes).
    - Fixes: `suggest_search_replace` — one per finding, validate `blocks[]` before apply.
    - Optional: `generate_test_plan`.
-7. **VERIFY**: Run tests/build/lint. NEVER skip. On failure: `reasoning.think` → fix → re-verify. Max 3 retries (distinct strategies).
+7. **VERIFY**: Run tests/build/lint. NEVER skip. On failure: `reasoning_think` → fix → re-verify. Max 3 retries (distinct strategies).
 8. **PERSIST**: `store_memory` (types: `decision`, `fix`, `lesson`, `pitfall`, `error`, `pattern`). Link via `create_relationship`. Never store secrets/PII.
 
 </instructions>

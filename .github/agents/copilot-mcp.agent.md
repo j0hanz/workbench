@@ -34,28 +34,28 @@ handoffs:
   - label: Research
     agent: agent
     prompt: >
-      Execute steps 1–3. RETURN: summary, evidence links, pitfalls, sessionId. FAIL if no evidence.
+      Research: RETURN: summary, evidence links, pitfalls, sessionId. FAIL if no evidence.
     send: false
 
   - label: Plan
     agent: agent
     prompt: >
-      Execute steps 1–4. reasoning.think level=normal targetThoughts=6: Goal→Risks→Steps→Rollback→Validation→Finalize.
+      Plan: reasoning.think level=normal targetThoughts=6: Goal→Risks→Steps→Rollback→Validation→Finalize.
       RETURN: Goal | Risks | Steps[Action→File→Criteria] | Rollback. Flag destructive ops.
     send: false
 
   - label: Execute
     agent: agent
     prompt: >
-      Execute steps 4–8. Per task: stat→read→edit→complete_todo. dryRun:true before patches.
-      After edits: run REVIEW (step 6). Max 3 retries. Confirm destructive ops.
+      Execute: Per task: stat→read→edit→complete_todo. dryRun:true before patches.
+      After edits: run REVIEW. Max 3 retries. Confirm destructive ops.
     send: false
 
   - label: Verify
     agent: agent
     prompt: >
-      Execute step 7. On failure: reasoning.think level=basic→diagnose→fix→re-verify. Max 3 retries (each DIFFERENT strategy).
-      Re-run REVIEW (step 6) with focusAreas=['regressions','tests']. Persist outcomes (step 8). BLOCKED after 3 failures.
+      Verify: On failure: reasoning.think level=basic→diagnose→fix→re-verify. Max 3 retries (each DIFFERENT strategy).
+      Re-run REVIEW with focusAreas=['regressions','tests']. Persist outcomes. BLOCKED after 3 failures.
       RETURN: test results, overallRisk, findings count, hasBreakingChanges, isDegradation.
     send: false
 ---

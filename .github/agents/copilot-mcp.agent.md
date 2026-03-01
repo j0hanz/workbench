@@ -34,6 +34,7 @@ handoffs:
   - label: Research
     agent: agent
     prompt: >
+      Research with evidence-first approach. Use tools in this order:
       1. recall({ query, depth: 1 }) for prior knowledge.
       2. Search: brave_web_search (general), context7 (lib docs), fetch-url (specific URLs).
       3. Cross-reference 2+ sources.
@@ -44,7 +45,8 @@ handoffs:
   - label: Plan
     agent: agent
     prompt: >
-      reasoning_think level=normal, targetThoughts=6. Use observation/hypothesis/evaluation fields.
+      Plan:
+      reasoning_think level=normal, targetThoughts=4. Use observation/hypothesis/evaluation fields.
       If 4+ steps: track with add_todos (priority, category per item).
       Return: { goal, constraints[], risks[], steps[{ action, file, criteria, rollback }], dependencies[] }.
       Flag destructive and approval-required ops.
@@ -53,6 +55,7 @@ handoffs:
   - label: Execute
     agent: agent
     prompt: >
+      Execute with precision and safety. Follow plan steps in this order:
       Flow: roots -> ls/find -> stat_many -> read_many -> edit. Batch independent ops.
       dryRun:true before apply_patch/search_and_replace. edit for single-file, search_and_replace for bulk.
       Validate each edit with get_errors or grep. Run generate_diff + inspect_code_quality after all edits.
@@ -62,6 +65,7 @@ handoffs:
   - label: Verify
     agent: agent
     prompt: >
+      Verify:
       Run tests + build + lint. On failure: reasoning_think level=basic (observation/hypothesis/evaluation).
       Fix and re-verify. Max 3 retries, each DIFFERENT strategy.
       After pass: compare changes against original goal.

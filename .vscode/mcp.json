@@ -1,10 +1,10 @@
 {
   "servers": {
-    "code-review-analyst": {
+    "code-assistant": {
       "command": "npx",
       "args": [
         "-y",
-        "@j0hanz/code-review-analyst-mcp@latest"
+        "@j0hanz/code-assistant@latest"
       ],
       "env": {
         "GEMINI_API_KEY": "${input:gemini-api-key}"

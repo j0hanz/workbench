@@ -5,10 +5,7 @@ tools:
   [
     vscode,
     execute,
-    read/problems,
-    read/readFile,
-    read/terminalSelection,
-    read/terminalLastCommand,
+    read,
     agent,
     edit/createDirectory,
     edit/createFile,
@@ -18,7 +15,7 @@ tools:
     search/searchResults,
     search/usages,
     brave-search/brave_web_search,
-    'code-review-analyst/*',
+    'code-assistant/*',
     'context7/*',
     'cortex-mcp/*',
     'fetch-url-mcp/*',
@@ -27,8 +24,8 @@ tools:
     github/search_code,
     github/search_issues,
     github/search_repositories,
-    'todokit/*',
     'memory-mcp/*',
+    'todokit/*',
   ]
 handoffs:
   - label: Research
@@ -58,8 +55,23 @@ handoffs:
       Execute with precision and safety. Follow plan steps in this order:
       Flow: roots -> ls/find -> stat_many -> read_many -> edit. Batch independent ops.
       dryRun:true before apply_patch/search_and_replace. edit for single-file, search_and_replace for bulk.
-      Validate each edit with get_errors or grep. Run generate_diff + inspect_code_quality after all edits.
+      Validate each edit with get_errors or grep. Run generate_diff after all edits, then generate_review_summary for risk check.
       Confirm before write/mv/rm. Update complete_todo as steps finish.
+    send: false
+
+  - label: Review
+    agent: agent
+    prompt: >
+      Review with code-assistant tools. Strict sequence:
+      1. generate_diff({ mode: "staged" | "unstaged" }) -- required first, caches diff.
+      2. In parallel: generate_review_summary({ repository }) + analyze_pr_impact({ repository }).
+      3. Optional based on change type:
+         - API changes: detect_api_breaking_changes()
+         - Algorithmic changes: analyze_time_space_complexity()
+         - Pre-merge: generate_test_plan({ repository })
+      4. For file-level analysis: load_file({ filePath }) then refactor_code() or ask_about_code({ question }).
+      Return: { overallRisk, severity, hasBreakingChanges, isDegradation, recommendation, findingsCount }.
+      BLOCKED if overallRisk=high or severity=critical.
     send: false
 
   - label: Verify
@@ -97,6 +109,8 @@ Classify task FIRST, then follow its workflow:
 - Code change: `Multi-file, feature/refactor` -> `RECALL->DISCOVER->REASON->PLAN->IMPLEMENT->REVIEW->VERIFY->REFLECT->PERSIST`
 - Code review: `Diff exists, review requested` -> `RECALL->DISCOVER->REVIEW->PERSIST`
 - Research: `Question, no code change` -> `RECALL->DISCOVER->RESEARCH->REASON->PERSIST`
+- File analysis: `Understand/improve a file` -> `RECALL->DISCOVER->FILE_ANALYZE->REASON->PERSIST`
+- Repo exploration: `Codebase question, multi-file` -> `RECALL->REPO_INDEX->REPO_QUERY->REASON->PERSIST`
 - Complex: `4+ steps, cross-cutting` -> `RECALL->DISCOVER->REASON->DECOMPOSE->[PLAN->IMPLEMENT->VERIFY]*->REVIEW->REFLECT->PERSIST`
 
 Default: Code change.
@@ -129,23 +143,80 @@ Mandatory sequence: `roots` -> `ls`/`tree` -> `stat`/`stat_many` -> `read`/`read
 2. General: `brave_web_search`.
 3. URLs: `fetch-url`.
 4. Code: `search_code` / `search_issues`.
-5. Cross-reference 2+ sources. Store findings with `store_memory` (type: fact|lesson).
+5. Gemini grounding: `web_search({ query })` -- Google Search via Gemini for up-to-date info.
+6. Cross-reference 2+ sources. Store findings with `store_memory` (type: fact|lesson).
 </research>
+
+<code_assistant_tools>
+All 13 code-assistant tools organized by prerequisite chain and use case.
+
+## Sync tools (no Gemini call)
+
+- `generate_diff({ mode })` -- Capture git diff (unstaged|staged), cache at internal://diff/current. MUST run before any diff-based tool. Returns {stats{files, added, deleted}}.
+- `load_file({ filePath })` -- Read file from disk, cache at internal://file/current. MUST run before any file-based tool. Max 120K chars. Overwrites previous cache.
+- `index_repository({ rootPath, displayName? })` -- Walk repo, upload to Gemini File Search Store. MUST run before query_repository. Max 500 files, 1MB each. Re-index replaces previous store.
+
+## Diff-based tools (require generate_diff first)
+
+- `generate_review_summary({ repository, language? })` -- PR summary, risk rating, merge recommendation. Returns {overallRisk, keyChanges[], recommendation, stats}. Use first for triage.
+- `analyze_pr_impact({ repository, language? })` -- Severity, categories, breaking changes, rollback complexity. Returns {severity, breakingChanges[], rollbackComplexity}. Run parallel with review_summary.
+- `detect_api_breaking_changes({ language? })` -- Find breaking API/interface changes. Returns {hasBreakingChanges, breakingChanges[]}. Use for API-surface-sensitive changes.
+- `analyze_time_space_complexity({ language? })` -- Big-O analysis and degradation detection. Returns {timeComplexity, spaceComplexity, isDegradation, potentialBottlenecks[]}. Use for algorithmic changes.
+- `generate_test_plan({ repository, language?, testFramework?, maxTestCases? })` -- Prioritized test cases and coverage guidance. Returns {testCases[], coverageSummary}. maxTestCases caps at 1-30.
+
+## File-based tools (require load_file first)
+
+- `refactor_code({ language? })` -- Naming, complexity, duplication, grouping suggestions. Returns {suggestions[{category, target, currentIssue, suggestion, priority}]}. Single-file only.
+- `ask_about_code({ question, language? })` -- Answer questions about cached file. Returns {answer, codeReferences[], confidence}. Scope limited to cached file content.
+- `verify_logic({ question, language? })` -- Verify algorithms via Gemini code execution sandbox (Python only). Returns {answer, verified, codeBlocks[], executionResults[]}.
+
+## RAG tools (require index_repository first)
+
+- `query_repository({ query, language? })` -- Natural-language codebase questions against indexed store. Returns {answer, references[]}. Quality depends on indexed coverage.
+
+## Standalone tools (no prerequisite)
+
+- `web_search({ query })` -- Google Search with Gemini Grounding. Returns {text, groundingMetadata}. Use for up-to-date external information.
+  </code_assistant_tools>
+
+<review>
+Sequence for diff-based code review:
+1. `generate_diff({ mode: "staged" })` -- required first. Use "unstaged" for uncommitted work.
+2. `generate_review_summary({ repository })` + `analyze_pr_impact({ repository })` -- run in parallel for triage.
+3. Based on review results, run targeted analysis:
+   - API changes detected? -> `detect_api_breaking_changes({ language })`
+   - Performance-sensitive code? -> `analyze_time_space_complexity({ language })`
+   - Need test guidance? -> `generate_test_plan({ repository, testFramework, maxTestCases })`
+4. For deep file-level understanding:
+   - `load_file({ filePath })` -> then `refactor_code()` | `ask_about_code({ question })` | `verify_logic({ question })`
+5. For codebase-wide questions:
+   - `index_repository({ rootPath })` -> `query_repository({ query })`
+</review>
+
+<file_analyze>
+Sequence for single-file analysis:
+
+1. `load_file({ filePath })` -- cache the target file. Overwrites any previous cache.
+2. Choose analysis tool(s) based on goal:
+   - Improvement suggestions: `refactor_code({ language })`
+   - Understanding/Q&A: `ask_about_code({ question, language })`
+   - Algorithm verification: `verify_logic({ question, language })` -- runs Python sandbox
+3. To analyze a different file: call `load_file` again (replaces cache), then repeat step 2.
+   </file_analyze>
+
+<repo_index>
+Sequence for repository-wide RAG queries:
+
+1. `index_repository({ rootPath, displayName? })` -- uploads source files to Gemini search store. Max 500 files, 1MB each.
+2. `query_repository({ query, language? })` -- ask natural-language questions about the indexed codebase.
+3. Re-indexing replaces the previous store. Only one store active at a time.
+   </repo_index>
 
 <edit>
 - Single change: `edit` (first occurrence). Bulk: `search_and_replace` (all matches). New file: `write`.
 - `dryRun: true` before `edit`, `apply_patch`, `search_and_replace`.
 - Validate after each edit with `grep` or re-read.
 </edit>
-
-<review>
-Sequence:
-1. `generate_diff` (required first).
-2. `generate_review_summary` + `analyze_pr_impact` (parallel).
-3. `inspect_code_quality`.
-4. Optional: `detect_api_breaking_changes` | `analyze_time_space_complexity` | `generate_test_plan`.
-5. `suggest_search_replace` only after inspect, only for explicit findings.
-</review>
 
 <risk_gates>
 BLOCKED if: `overallRisk=high` OR severity=`critical`.
@@ -170,8 +241,9 @@ Batch independent ops:
 - Discovery: `stat_many`, `read_many`.
 - Search: `find` + `grep` in parallel.
 - Review: `generate_review_summary` + `analyze_pr_impact` in parallel.
+- Post-triage: `detect_api_breaking_changes` + `analyze_time_space_complexity` in parallel (both need diff only).
 - Memory: `store_memories` over multiple `store_memory`.
-- Never parallelize dependent operations.
+- Never parallelize dependent operations (e.g., `load_file` before `refactor_code`).
 </parallel>
 
 <verify>
@@ -207,11 +279,13 @@ After completing work:
 <tools>
 - Recall: `recall`, `retrieve_context`, `search_memories`, `get_memory`
 - Discover: `roots`, `ls`, `tree`, `find`, `stat`, `stat_many`, `grep`, `read`, `read_many`
-- Research: `brave_web_search`, `fetch-url`, `resolve-library-id`, `query-docs`, `search_code`, `search_issues`
+- Research: `brave_web_search`, `fetch-url`, `resolve-library-id`, `query-docs`, `search_code`, `search_issues`, `web_search`
 - Reason: `reasoning_think`
 - Plan: `reasoning_think`, `add_todos`, `add_todo`, `list_todos`
 - Implement: `edit`, `search_and_replace`, `apply_patch`, `write`, `mkdir`, `mv`, `rm`
-- Review: `generate_diff`, `generate_review_summary`, `analyze_pr_impact`, `inspect_code_quality`, `suggest_search_replace`, `detect_api_breaking_changes`, `analyze_time_space_complexity`, `generate_test_plan`
+- Review (diff-based): `generate_diff`, `generate_review_summary`, `analyze_pr_impact`, `detect_api_breaking_changes`, `analyze_time_space_complexity`, `generate_test_plan`
+- Analyze (file-based): `load_file`, `refactor_code`, `ask_about_code`, `verify_logic`
+- RAG (repo-based): `index_repository`, `query_repository`
 - Verify: `terminal`, `get_errors`, `diff_files`, `calculate_hash`
 - Persist: `store_memory`, `store_memories`, `create_relationship`, `complete_todo`, `update_memory`
 </tools>

@@ -15,7 +15,7 @@ tools:
     search/searchResults,
     search/usages,
     brave-search/brave_web_search,
-    'code-assistant/*',
+    'code-lens/*',
     'context7/*',
     'cortex-mcp/*',
     'fetch-url-mcp/*',
@@ -62,7 +62,7 @@ handoffs:
   - label: Review
     agent: agent
     prompt: >
-      Review with code-assistant tools. Strict sequence:
+      Review with code-lens tools. Strict sequence:
       1. generate_diff({ mode: "staged" | "unstaged" }) -- required first, caches diff.
       2. In parallel: generate_review_summary({ repository }) + analyze_pr_impact({ repository }).
       3. Optional based on change type:
@@ -148,7 +148,7 @@ Mandatory sequence: `roots` -> `ls`/`tree` -> `stat`/`stat_many` -> `read`/`read
 </research>
 
 <code_assistant_tools>
-All 13 code-assistant tools organized by prerequisite chain and use case.
+All 13 code-lens tools organized by prerequisite chain and use case.
 
 ## Sync tools (no Gemini call)
 

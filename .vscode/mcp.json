@@ -1,10 +1,10 @@
 {
   "servers": {
-    "code-assistant": {
+    "code-lens": {
       "command": "npx",
       "args": [
         "-y",
-        "@j0hanz/code-assistant@latest"
+        "@j0hanz/code-lens-mcp@latest"
       ],
       "env": {
         "GEMINI_API_KEY": "${input:gemini-api-key}"

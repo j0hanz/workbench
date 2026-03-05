@@ -35,12 +35,12 @@ handoffs:
 
       1. recall({ query, depth: 1 }) — check prior knowledge first.
 
-      2. Search external sources:
-         - brave_web_search for general queries.
-         - context7 resolve-library-id → query-docs for library docs.
-         - fetch-url for specific URLs (public only, no localhost/private IPs).
+      2. Search external sources (pick best fit, combine when needed):
+         - brave_web_search for general/broad queries.
+         - context7: resolve-library-id({ libraryName }) → query-docs({ libraryId, topic }) for up-to-date library docs and code examples.
+         - fetch-url for specific URLs (public only, no localhost/private IPs). If truncated, read cacheResourceUri.
 
-      3. Cross-reference 2+ sources before concluding.
+      3. Cross-reference 2+ sources before concluding. Prefer official docs over blog posts.
 
       Return: { summary, evidence_links[], confidence: high|medium|low, pitfalls[] }.
       BLOCKED if insufficient evidence — state the gap explicitly.
@@ -51,9 +51,11 @@ handoffs:
     prompt: >
       Structured planning with reasoning.
 
-      1. reasoning_think({ query, level: "normal", targetThoughts: 4, observation, hypothesis, evaluation }).
-      2. If 4+ steps: add_todos with priority and category per item.
-      3. Flag destructive ops (write/mv/rm/apply_patch) and approval-required steps.
+      1. Decompose first: identify module boundaries, cross-layer coupling, and affected areas before proposing changes.
+      2. reasoning_think({ query, level: "normal", targetThoughts: 4, observation, hypothesis, evaluation }).
+      3. If 4+ steps: add_todos with priority and category per item. Order by dependency, not size.
+      4. Flag destructive ops (write/mv/rm/apply_patch) and approval-required steps.
+      5. For schema/data changes: plan additive, backward-compatible migrations with explicit rollback.
 
       Return: { goal, constraints[], risks[], steps[{ action, file, criteria, rollback }], dependencies[] }.
     send: false
@@ -64,11 +66,13 @@ handoffs:
       Safe filesystem execution. Strict discovery-first flow:
 
       1. Discover: roots → ls/find → stat_many → read_many. Never guess paths.
-      2. Edit: edit (single-file targeted) or search_and_replace (bulk regex).
+      2. Execute incrementally — one logical step at a time. Validate before moving to next.
+      3. Edit: edit (single-file targeted) or search_and_replace (bulk regex).
          - Always dryRun:true before apply_patch or search_and_replace.
-      3. Validate: grep or get_errors after each edit.
-      4. Post-edit: generate_diff({ mode: "unstaged" }) → generate_review_summary for risk.
-      5. Confirm before destructive ops (write, mv, rm).
+      4. Cross-module check: after editing a file, verify callers/consumers are still consistent.
+      5. Validate: grep or get_errors after each edit.
+      6. Post-edit: generate_diff({ mode: "unstaged" }) → generate_review_summary for risk.
+      7. Confirm before destructive ops (write, mv, rm).
 
       Batch independent read ops. Update complete_todo per step.
     send: false
@@ -83,10 +87,12 @@ handoffs:
       3. Conditional (based on diff content):
          - API surface changes → detect_api_breaking_changes()
          - Algorithm changes → analyze_time_space_complexity()
-         - Pre-merge gate → generate_test_plan({ repository })
+         - Schema/migration changes → verify backward compatibility and rollback plan.
+         - Pre-merge gate → generate_test_plan({ repository, testFramework })
       4. File-level: load_file({ filePath }) → then refactor_code() | ask_about_code({ question }) | detect_code_smells().
+      5. Acceptance criteria: compare changes against the original goal/issue requirements. Flag gaps.
 
-      Return: { overallRisk, severity, hasBreakingChanges, isDegradation, recommendation }.
+      Return: { overallRisk, severity, hasBreakingChanges, isDegradation, recommendation, criteriaGaps[] }.
       BLOCKED if overallRisk=high or severity=critical — escalate to user.
     send: false
 
@@ -101,8 +107,9 @@ handoffs:
 
       On pass:
         generate_diff → generate_review_summary. Compare changes against original goal.
+        Test quality check: ensure contract tests (interface contracts), integration tests (cross-module), and domain-layer unit tests are covered — not just line coverage.
 
-      Return: { test_results, overallRisk, hasBreakingChanges, isDegradation, reflection }.
+      Return: { test_results, overallRisk, hasBreakingChanges, isDegradation, testCoverage: { contract, integration, domain }, reflection }.
     send: false
 ---
 
@@ -150,6 +157,23 @@ handoffs:
 - **Graph**: `create_relationship`, `delete_relationship`, `get_relationships`.
 - **Data model**: hash=SHA-256(content+tags), content 1–100K chars, tags 1–100, type (general|fact|plan|decision|reflection|lesson|error|gradient), importance 0–10.
 - **Idempotent**: `store_memory` returns `created: false` if content+tags already exist.
+
+## context7 (Library documentation)
+
+- **Workflow**: `resolve-library-id({ libraryName })` → `query-docs({ libraryId, topic })`. Always resolve first.
+- **Use for**: up-to-date API docs, code examples, migration guides for any library/framework.
+- **Topic param**: scope results (e.g., "hooks", "middleware", "configuration") for focused answers.
+
+## todokit (Task tracking)
+
+- **Tools**: `list_todos`, `add_todo`, `add_todos` (batch), `update_todo`, `complete_todo`, `delete_todo`.
+- **Workflow**: `list_todos` first (never guess IDs) → `add_todos` for planning → `complete_todo` per step.
+- **Limits**: max 50 items returned; use status filter ('pending'|'completed'|'all').
+
+## brave-search (Web search)
+
+- **Tool**: `brave_web_search` — general-purpose web search via Brave Search API.
+- **Use for**: broad queries, recent news, Stack Overflow answers, blog posts not covered by context7.
 
 # Orchestration Rules
 

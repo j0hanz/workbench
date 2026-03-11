@@ -10,9 +10,12 @@
         "GEMINI_API_KEY": "${input:gemini-api-key}"
       }
     },
-    "memory-mcp": {
+    "memory": {
       "command": "npx",
-      "args": ["-y", "@j0hanz/memory-mcp@latest"]
+      "args": [
+        "-y",
+        "@j0hanz/memory-mcp@latest"
+      ]
     },
     "todokit": {
       "command": "npx",
@@ -21,7 +24,7 @@
         "@j0hanz/todokit-mcp@latest"
       ]
     },
-    "filesystem-mcp": {
+    "filesystem": {
       "command": "npx",
       "args": [
         "-y",
@@ -29,15 +32,12 @@
         "${workspaceFolder}"
       ]
     },
-    "fetch-url-mcp": {
+   "fetch-url": {
+      "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "@j0hanz/fetch-url-mcp@latest",
-        "--stdio"
-      ]
+      "args": ["-y", "@j0hanz/fetch-url-mcp@latest"]
     },
-    "cortex-mcp": {
+    "cortex": {
       "command": "npx",
       "args": [
         "-y",
